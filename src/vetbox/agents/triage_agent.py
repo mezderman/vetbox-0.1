@@ -12,8 +12,6 @@ class TriageOutput(BaseModel):
 class TriageAgent:
     def __init__(self, model: str = None):
         model = 'openai:gpt-4o'
-        print(f"Using model: {model}")
-        print("OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))
         self.system_prompt = (
             "You are a medical triage assistant. Given the following symptoms, provide:\n"
             "- triage_level: High, Medium, or Low\n"
