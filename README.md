@@ -81,4 +81,45 @@ vetbox-0.1/
 Run tests with pytest:
 ```sh
 pytest tests/
-``` 
+```
+
+## Database Setup & Initialization
+
+### 1. Start the Database (Postgres via Docker)
+
+If you haven't already, start the Postgres database using Docker Compose:
+
+```bash
+docker-compose up -d
+```
+
+This will launch a Postgres instance as defined in your `docker-compose.yml`.
+
+### 2. Initialize Database Tables
+
+Run the table creation script from your project root:
+
+```bash
+PYTHONPATH=src python scripts/create_tables.py
+```
+
+This will create all tables in the database according to your SQLAlchemy models.
+
+### 3. Populate Test Data
+
+Make sure your test data file exists at `data/rules.json`.
+
+Run the population script:
+
+```bash
+PYTHONPATH=src python scripts/populate_test_data.py
+```
+
+This will insert rules and related data into the database, skipping any rules that already exist.
+
+---
+
+**Troubleshooting:**
+- Ensure Docker is running and the Postgres container is healthy.
+- If you change your database connection settings, update the `DATABASE_URL` in your `.env` file.
+- If you modify your models, re-run the table creation script. 

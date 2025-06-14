@@ -1,0 +1,40 @@
+[
+  {
+    "id": 46,
+    "rule_code": "E-46",
+    "priority": "Emergency",
+    "rationale": "Hives on mouth or nose",
+    "conditions": [
+      {
+        "type": "symptom",
+        "symptom": "HIVES"
+      },
+      {
+        "type": "slot",
+        "slot": "LOCATION",
+        "operator": "in",
+        "value": ["mouth", "nose"],
+        "parent_symptom": "HIVES"
+      }
+    ]
+  },
+  {
+    "id": 50,
+    "rule_code": "E-50",
+    "priority": "Emergency",
+    "rationale": "Vomiting and unable to hold down food or water",
+    "conditions": [
+      {
+        "type": "symptom",
+        "symptom": "VOMITING"
+      },
+      {
+        "type": "slot",
+        "slot": "CANNOT_HOLD_DOWN",
+        "operator": "==",
+        "value": ["food", "water"],
+        "parent_symptom": "VOMITING"
+      }
+    ]
+  }
+]
