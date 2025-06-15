@@ -79,10 +79,11 @@ async def chat(request: ChatRequest):
             cond.parent_symptom
     rules_json = [serialize_rule(rule) for rule in rules]
     session.close()
-    print("[Rules in DB]", pyjson.dumps(rules_json, indent=2))
+    # print("[Rules in DB]", pyjson.dumps(rules_json, indent=2))
 
     # Call the triage agent as before
     result = await agent.run_async(request.user_answer)
+    
     return ChatResponse(
         triage_level=result.triage_level,
         advice=result.advice
