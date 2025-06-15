@@ -1,6 +1,7 @@
 import os
 from pydantic import BaseModel
 from pydantic_ai import Agent
+from vetbox.agents.conditions_extractor_agent import ConditionsExtractorAgent
 
 class TriageInput(BaseModel):
     symptoms: str
@@ -23,18 +24,18 @@ class TriageAgent:
             system_prompt=self.system_prompt,
         )
 
-    def run(self, symptoms: str) -> TriageOutput:
-        prompt = f"Symptoms: {symptoms}"
-        result = self.agent.run_sync(prompt)
-        return result.output
 
-    async def run_async(self, symptoms: str) -> TriageOutput:
+    async def run_async(self, user_response: str) -> TriageOutput:
+        conditions_extractor_agent = ConditionsExtractorAgent()
+        conditions = await conditions_extractor_agent.run_async("What are the symptoms?", user_response)
+        print("[Conditions]", conditions)
+
         prompt = f"""
 You are a medical triage assistant. Given the following symptoms, provide:
 - triage_level: High, Medium, or Low
 - advice: Short advice for the patient
 
-Symptoms: {symptoms}
+Symptoms: {user_response}
 """
         result = await self.agent.run(prompt)
         return result.output

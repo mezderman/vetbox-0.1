@@ -6,7 +6,9 @@ from dotenv import load_dotenv
 import os
 # Add imports for DB access
 from vetbox.db.database import SessionLocal
-from vetbox.db.models import Rule, RuleCondition, Symptom, SlotName
+from vetbox.db.models import Rule, RuleCondition
+import json as pyjson
+
 load_dotenv()
 app = FastAPI()
 
@@ -20,7 +22,7 @@ app.add_middleware(
 )
 
 class ChatRequest(BaseModel):
-    symptoms: str
+    user_answer: str  # Expected request body: { "user_answer": "..." }
 
 class ChatResponse(BaseModel):
     triage_level: str
@@ -65,7 +67,7 @@ def serialize_condition(cond: RuleCondition):
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     # Query all rules and log them as JSON
-    import json as pyjson
+    
     session = SessionLocal()
     rules = session.query(Rule).all()
     # Eager load conditions and related fields
@@ -80,7 +82,7 @@ async def chat(request: ChatRequest):
     print("[Rules in DB]", pyjson.dumps(rules_json, indent=2))
 
     # Call the triage agent as before
-    result = await agent.run_async(request.symptoms)
+    result = await agent.run_async(request.user_answer)
     return ChatResponse(
         triage_level=result.triage_level,
         advice=result.advice

@@ -7,7 +7,7 @@ type ChatResponse = {
 } | { error: string } | null;
 
 function App() {
-  const [symptoms, setSymptoms] = useState("");
+  const [userAnswer, setUserAnswer] = useState("");
   const [response, setResponse] = useState<ChatResponse>(null);
   const [loading, setLoading] = useState(false);
 
@@ -19,7 +19,7 @@ function App() {
       const res = await fetch("http://localhost:8000/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symptoms }),
+        body: JSON.stringify({ user_answer: userAnswer }),
       });
       const data = await res.json();
       setResponse(data);
@@ -36,11 +36,11 @@ function App() {
         <textarea
           rows={4}
           style={{ width: "100%" }}
-          value={symptoms}
-          onChange={(e) => setSymptoms(e.target.value)}
+          value={userAnswer}
+          onChange={(e) => setUserAnswer(e.target.value)}
           placeholder="Describe your symptoms..."
         />
-        <button type="submit" disabled={loading || !symptoms}>
+        <button type="submit" disabled={loading || !userAnswer}>
           {loading ? "Sending..." : "Send"}
         </button>
       </form>
