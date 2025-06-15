@@ -4,10 +4,23 @@ from pydantic import BaseModel
 from src.vetbox.agents.triage_agent import TriageAgent
 from dotenv import load_dotenv
 import os
+import logging
 # Add imports for DB access
 from vetbox.db.database import SessionLocal
 from vetbox.db.models import Rule, RuleCondition
+from vetbox.models.rule_engine import RuleEngine
 import json as pyjson
+
+# Configure logging
+logging.basicConfig(
+    level=logging.WARNING,
+    format='%(levelname)s: %(message)s'
+)
+# Reduce specific loggers' verbosity
+logging.getLogger('sqlalchemy.engine').setLevel(logging.ERROR)
+logging.getLogger('urllib3').setLevel(logging.ERROR)
+logging.getLogger('asyncio').setLevel(logging.ERROR)
+logging.getLogger('openai').setLevel(logging.ERROR)
 
 load_dotenv()
 app = FastAPI()
@@ -28,46 +41,8 @@ class ChatResponse(BaseModel):
     triage_level: str
     advice: str
 
-agent = TriageAgent()
-
-
-def serialize_rule(rule: Rule):
-    # Serialize a Rule and its conditions to match the test data format
-    return {
-        "id": rule.id,
-        "rule_code": rule.rule_code,
-        "priority": rule.priority,
-        "rationale": rule.rationale,
-        "conditions": [serialize_condition(cond) for cond in rule.conditions]
-    }
-
-def serialize_condition(cond: RuleCondition):
-    if cond.condition_type == "symptom":
-        return {
-            "type": "symptom",
-            "symptom": cond.symptom.code if cond.symptom else None
-        }
-    elif cond.condition_type == "slot":
-        # Parse value as JSON if possible
-        import json
-        try:
-            value = json.loads(cond.value) if cond.value and cond.value.startswith("[") else cond.value
-        except Exception:
-            value = cond.value
-        return {
-            "type": "slot",
-            "slot": cond.slot_name.code if cond.slot_name else None,
-            "operator": cond.operator,
-            "value": value,
-            "parent_symptom": cond.parent_symptom.code if cond.parent_symptom else None
-        }
-    else:
-        return {}
-
-@app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
-    # Query all rules and log them as JSON
-    
+def get_rules_from_db():
+    """Load rules from the database and create a RuleEngine instance."""
     session = SessionLocal()
     rules = session.query(Rule).all()
     # Eager load conditions and related fields
@@ -77,13 +52,19 @@ async def chat(request: ChatRequest):
             cond.symptom
             cond.slot_name
             cond.parent_symptom
-    rules_json = [serialize_rule(rule) for rule in rules]
-    session.close()
-    # print("[Rules in DB]", pyjson.dumps(rules_json, indent=2))
-
-    # Call the triage agent as before
-    result = await agent.run_async(request.user_answer)
     
+    # Create RuleEngine instance from DB rules
+    rule_engine = RuleEngine.from_db_rules(rules)
+    session.close()
+    return rule_engine.rules
+
+# Initialize the agent with rules
+rules = get_rules_from_db()
+agent = TriageAgent(rules=rules)
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    result = await agent.run_async(request.user_answer)
     return ChatResponse(
         triage_level=result.triage_level,
         advice=result.advice
