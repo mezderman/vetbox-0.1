@@ -5,9 +5,6 @@ from src.vetbox.agents.triage_agent import TriageAgent
 from dotenv import load_dotenv
 import os
 import logging
-# Add imports for DB access
-from vetbox.db.database import SessionLocal
-from vetbox.db.models import Rule, RuleCondition
 from vetbox.models.rule_engine import RuleEngine
 import json as pyjson
 
@@ -41,26 +38,9 @@ class ChatResponse(BaseModel):
     triage_level: str
     advice: str
 
-def get_rules_from_db():
-    """Load rules from the database and create a RuleEngine instance."""
-    session = SessionLocal()
-    rules = session.query(Rule).all()
-    # Eager load conditions and related fields
-    for rule in rules:
-        rule.conditions
-        for cond in rule.conditions:
-            cond.symptom
-            cond.slot_name
-            cond.parent_symptom
-    
-    # Create RuleEngine instance from DB rules
-    rule_engine = RuleEngine.from_db_rules(rules)
-    session.close()
-    return rule_engine.rules
-
-# Initialize the agent with rules
-rules = get_rules_from_db()
-agent = TriageAgent(rules=rules)
+# Initialize the agent with rules from the database
+rule_engine = RuleEngine.get_all_rules()
+agent = TriageAgent(rules=rule_engine.rules)
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):

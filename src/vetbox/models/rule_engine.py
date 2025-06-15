@@ -1,6 +1,8 @@
 from typing import Dict, List, Optional, Any
 from .case_data import CaseData
 import json
+from vetbox.db.database import SessionLocal
+from vetbox.db.models import Rule
 
 class RuleEngine:
     """
@@ -53,6 +55,26 @@ class RuleEngine:
  
         serialized_rules = [cls.serialize_rule(rule) for rule in db_rules]
         return cls(serialized_rules)
+    
+    @classmethod
+    def get_all_rules(cls) -> 'RuleEngine':
+        """
+        Load all rules from the database and return a RuleEngine instance.
+        Handles eager loading of all related data (conditions, symptoms, slots).
+        """
+        session = SessionLocal()
+        try:
+            rules = session.query(Rule).all()
+            # Eager load conditions and related fields
+            for rule in rules:
+                rule.conditions
+                for cond in rule.conditions:
+                    cond.symptom
+                    cond.slot_name
+                    cond.parent_symptom
+            return cls.from_db_rules(rules)
+        finally:
+            session.close()
     
     def find_candidate_rules(self, case_data: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
 
