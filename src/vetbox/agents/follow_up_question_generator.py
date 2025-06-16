@@ -63,21 +63,8 @@ class FollowUpQuestionGenerator:
             Missing Information:
             {missing_condition}
             """
-        print("[FollowUpQuestionGenerator prompt]", prompt)
         result = await self.agent.run(prompt)
         return result.output.question
-
-    # def run(self, case_data: Dict[str, Any], missing_condition: Dict[str, Any]) -> str:
-    #     """Synchronous version of run_async."""
-    #     prompt = f"""
-    #         Current Case Data:
-    #         {case_data}
-
-    #         Missing Information:
-    #         {missing_condition}
-    #         """
-    #     result = self.agent.run_sync(prompt)
-    #     return result.output.question
 
     def generate(self, case_data: Dict[str, Any], missing_condition: Dict[str, Any]) -> str:
         return self.run_async(case_data, missing_condition) 

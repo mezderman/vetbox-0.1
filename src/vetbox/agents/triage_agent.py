@@ -2,9 +2,10 @@ import os
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from vetbox.agents.conditions_extractor_agent import ConditionsExtractorAgent
+from vetbox.agents.follow_up_question_generator import FollowUpQuestionGenerator
 from vetbox.models.case_data import CaseData
 from vetbox.models.rule_engine import RuleEngine
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Tuple
 
 class TriageInput(BaseModel):
     symptoms: str
@@ -12,6 +13,7 @@ class TriageInput(BaseModel):
 class TriageOutput(BaseModel):
     triage_level: str
     advice: str
+    follow_up_question: Optional[str] = None
 
 class TriageAgent:
     def __init__(self, rules: List[Dict[str, Any]] = None, model: str = None):
@@ -35,6 +37,7 @@ class TriageAgent:
         )
         self.case_data = CaseData()
         self.rule_engine = RuleEngine(rules or [])
+        self.follow_up_generator = FollowUpQuestionGenerator()
 
     async def run_async(self, user_response: str) -> TriageOutput:
         # Extract conditions from user response
@@ -44,7 +47,6 @@ class TriageAgent:
             answer=user_response
         )
         print("[Conditions]", conditions)
-        
         
         # Update case data with new conditions
         self.case_data.merge_extraction(conditions)
@@ -65,6 +67,8 @@ class TriageAgent:
 
         # Find best matching rule based on current case
         best_rule = self.rule_engine.find_best_matching_rule(current_case)
+        follow_up_question = None
+
         if best_rule:
             print("[Best Matching Rule]", best_rule.get('rule_code'), best_rule.get('rationale'))
             # Map string priority to numeric level
@@ -73,13 +77,23 @@ class TriageAgent:
             triage_level = "High" if priority_level >= 3 else "Medium" if priority_level >= 2 else "Low"
             advice = best_rule.get('rationale', "Please consult with a veterinarian.")
 
-            # If the best rule has missing conditions, we might want to ask follow-up questions
+            # If the best rule has missing conditions, generate a follow-up question
             missing_conditions = self.rule_engine.get_missing_conditions(best_rule, current_case)
             if missing_conditions:
                 print("[Missing Conditions for Best Rule]", missing_conditions)
+                # Generate follow-up question for the first missing condition
+                follow_up_question = await self.follow_up_generator.run_async(
+                    case_data=current_case,
+                    missing_condition=missing_conditions[0]
+                )
+                print("[Follow-up Question]", follow_up_question)
         else:
             triage_level = "Low"
             advice = "Based on the current symptoms, this appears to be a routine case. Please consult with a veterinarian."
 
-        return TriageOutput(triage_level=triage_level, advice=advice)
+        return TriageOutput(
+            triage_level=triage_level,
+            advice=advice,
+            follow_up_question=follow_up_question
+        )
 
