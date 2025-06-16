@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 
 type ChatResponse = {
-  triage_level: string;
-  advice: string;
+  follow_up_question: string | null;
   error?: string;
 } | { error: string } | null;
 
@@ -51,10 +50,7 @@ function App() {
           ) : (
             <>
               <div>
-                <strong>Triage Level:</strong> {response.triage_level}
-              </div>
-              <div>
-                <strong>Advice:</strong> {response.advice}
+                <strong>Bot:</strong> {response.follow_up_question}
               </div>
             </>
           )}

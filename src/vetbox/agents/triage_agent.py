@@ -11,9 +11,7 @@ class TriageInput(BaseModel):
     symptoms: str
 
 class TriageOutput(BaseModel):
-    triage_level: str
-    advice: str
-    follow_up_question: Optional[str] = None
+    follow_up_question: str | None = None
 
 class TriageAgent:
     def __init__(self, rules: List[Dict[str, Any]] = None, model: str = None):
@@ -26,9 +24,7 @@ class TriageAgent:
             "": 0  # Default priority
         }
         self.system_prompt = (
-            "You are a medical triage assistant. Given the following symptoms, provide:\n"
-            "- triage_level: High, Medium, or Low\n"
-            "- advice: Short advice for the patient"
+            "You are a veterinary triage assistant. Generate follow-up questions for pet symptoms."
         )
         self.agent = Agent(
             model,
@@ -53,29 +49,12 @@ class TriageAgent:
         current_case = self.case_data.to_dict()
         print("[Case Data]", current_case)
 
-        # Find all candidate rules that match any of the current symptoms
-        candidate_rules = self.rule_engine.find_candidate_rules(current_case)
-        print("[Candidate Rules]", [
-            {
-                "code": rule.get('rule_code'),
-                "priority": rule.get('priority'),
-                "rationale": rule.get('rationale'),
-                "missing": self.rule_engine.get_missing_conditions(rule, current_case)
-            }
-            for rule in candidate_rules
-        ])
-
         # Find best matching rule based on current case
         best_rule = self.rule_engine.find_best_matching_rule(current_case)
         follow_up_question = None
 
         if best_rule:
             print("[Best Matching Rule]", best_rule.get('rule_code'), best_rule.get('rationale'))
-            # Map string priority to numeric level
-            priority_str = best_rule.get('priority', '')
-            priority_level = self.priority_map.get(priority_str, 0)
-            triage_level = "High" if priority_level >= 3 else "Medium" if priority_level >= 2 else "Low"
-            advice = best_rule.get('rationale', "Please consult with a veterinarian.")
 
             # If the best rule has missing conditions, generate a follow-up question
             missing_conditions = self.rule_engine.get_missing_conditions(best_rule, current_case)
@@ -88,12 +67,9 @@ class TriageAgent:
                 )
                 print("[Follow-up Question]", follow_up_question)
         else:
-            triage_level = "Low"
-            advice = "Based on the current symptoms, this appears to be a routine case. Please consult with a veterinarian."
+            follow_up_question = "Based on the current symptoms, this appears to be a routine case. Please consult with a veterinarian."
 
         return TriageOutput(
-            triage_level=triage_level,
-            advice=advice,
             follow_up_question=follow_up_question
         )
 

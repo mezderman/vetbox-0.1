@@ -35,8 +35,7 @@ class ChatRequest(BaseModel):
     user_answer: str  # Expected request body: { "user_answer": "..." }
 
 class ChatResponse(BaseModel):
-    triage_level: str
-    advice: str
+    follow_up_question: str
 
 # Initialize the agent with rules from the database
 rule_engine = RuleEngine.get_all_rules()
@@ -46,6 +45,5 @@ agent = TriageAgent(rules=rule_engine.rules)
 async def chat(request: ChatRequest):
     result = await agent.run_async(request.user_answer)
     return ChatResponse(
-        triage_level=result.triage_level,
-        advice=result.advice
+        follow_up_question=result.follow_up_question
     )
