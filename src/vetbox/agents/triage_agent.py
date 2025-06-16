@@ -16,6 +16,13 @@ class TriageOutput(BaseModel):
 class TriageAgent:
     def __init__(self, rules: List[Dict[str, Any]] = None, model: str = None):
         model = 'openai:gpt-4o'
+        # Priority mapping from string values to numeric levels
+        self.priority_map = {
+            "Emergency": 3,
+            "Urgent": 2,
+            "Routine": 1,
+            "": 0  # Default priority
+        }
         self.system_prompt = (
             "You are a medical triage assistant. Given the following symptoms, provide:\n"
             "- triage_level: High, Medium, or Low\n"
@@ -38,25 +45,38 @@ class TriageAgent:
         )
         print("[Conditions]", conditions)
         
-        # If conditions is empty but user_response contains symptom-like words, create a basic condition
-        if not conditions and any(word in user_response.lower() for word in ['cough', 'vomit', 'fever', 'lethargic', 'hives']):
-            symptom = user_response.lower().strip()
-            conditions = {symptom: True}
-            print("[Created basic condition]", conditions)
         
         # Update case data with new conditions
         self.case_data.merge_extraction(conditions)
         current_case = self.case_data.to_dict()
         print("[Case Data]", current_case)
 
+        # Find all candidate rules that match any of the current symptoms
+        candidate_rules = self.rule_engine.find_candidate_rules(current_case)
+        print("[Candidate Rules]", [
+            {
+                "code": rule.get('rule_code'),
+                "priority": rule.get('priority'),
+                "rationale": rule.get('rationale'),
+                "missing": self.rule_engine.get_missing_conditions(rule, current_case)
+            }
+            for rule in candidate_rules
+        ])
+
         # Find best matching rule based on current case
         best_rule = self.rule_engine.find_best_matching_rule(current_case)
         if best_rule:
             print("[Best Matching Rule]", best_rule.get('rule_code'), best_rule.get('rationale'))
-            # Use the rule's priority to determine triage level
-            priority = best_rule.get('priority', 0)
-            triage_level = "High" if priority >= 3 else "Medium" if priority >= 2 else "Low"
+            # Map string priority to numeric level
+            priority_str = best_rule.get('priority', '')
+            priority_level = self.priority_map.get(priority_str, 0)
+            triage_level = "High" if priority_level >= 3 else "Medium" if priority_level >= 2 else "Low"
             advice = best_rule.get('rationale', "Please consult with a veterinarian.")
+
+            # If the best rule has missing conditions, we might want to ask follow-up questions
+            missing_conditions = self.rule_engine.get_missing_conditions(best_rule, current_case)
+            if missing_conditions:
+                print("[Missing Conditions for Best Rule]", missing_conditions)
         else:
             triage_level = "Low"
             advice = "Based on the current symptoms, this appears to be a routine case. Please consult with a veterinarian."

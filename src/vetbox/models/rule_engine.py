@@ -77,8 +77,13 @@ class RuleEngine:
             session.close()
     
     def find_candidate_rules(self, case_data: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
-
+        """Find rules where at least one required symptom is present in the case data."""
         candidates = []
+        # Convert case_data keys to lowercase for case-insensitive matching
+        case_data_lower = {k.lower(): v for k, v in case_data.items()}
+        
+        print("[DEBUG] Case data (lowercase):", case_data_lower)
+        
         for rule in self.rules:
             # Get all symptom conditions from the rule
             symptom_conditions = [
@@ -86,14 +91,21 @@ class RuleEngine:
                 if cond.get('type') == 'symptom'
             ]
             
+            print(f"[DEBUG] Checking rule {rule.get('rule_code')} with conditions:", 
+                  [cond.get('symptom') for cond in symptom_conditions])
+            
             # Check if any required symptom is present
             for condition in symptom_conditions:
                 symptom_name = condition.get('symptom')
-                if symptom_name in case_data:
-                    symptom_data = case_data[symptom_name]
-                    if symptom_data.get('present') is True:
-                        candidates.append(rule)
-                        break
+                if symptom_name:  # Add null check
+                    symptom_name_lower = symptom_name.lower()
+                    print(f"[DEBUG] Checking symptom: {symptom_name_lower}")
+                    if symptom_name_lower in case_data_lower:
+                        symptom_data = case_data_lower[symptom_name_lower]
+                        if symptom_data.get('present') is True:
+                            print(f"[DEBUG] Found matching rule: {rule.get('rule_code')}")
+                            candidates.append(rule)
+                            break
         
         return candidates
     
@@ -174,6 +186,11 @@ class RuleEngine:
         return False
     
     def _is_symptom_present(self, symptom_name: str, case_data: Dict[str, Dict[str, Any]]) -> bool:
-
-        symptom_data = case_data.get(symptom_name, {})
+        """Check if a symptom is present in the case data (case-insensitive)."""
+        if not symptom_name:  # Add null check
+            return False
+        # Convert both the symptom name and case data keys to lowercase
+        symptom_name_lower = symptom_name.lower()
+        case_data_lower = {k.lower(): v for k, v in case_data.items()}
+        symptom_data = case_data_lower.get(symptom_name_lower, {})
         return symptom_data.get('present', False) is True
