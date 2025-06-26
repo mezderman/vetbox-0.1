@@ -1,61 +1,172 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import "./App.css";
+
+type Message = {
+  id: string;
+  text: string;
+  sender: "user" | "bot";
+  timestamp: Date;
+  type?: "error" | "normal";
+};
 
 type ChatResponse = {
   follow_up_question: string | null;
+  triage_level?: string;
   error?: string;
 } | { error: string } | null;
 
 function App() {
-  const [userAnswer, setUserAnswer] = useState("");
-  const [response, setResponse] = useState<ChatResponse>(null);
+  const [inputText, setInputText] = useState("");
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "welcome",
+      text: "Hello! I'm your veterinary triage assistant. Please describe your pet's symptoms and I'll help assess the situation.",
+      sender: "bot",
+      timestamp: new Date(),
+      type: "normal"
+    }
+  ]);
   const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const addMessage = (text: string, sender: "user" | "bot", type: "error" | "normal" = "normal") => {
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      text,
+      sender,
+      timestamp: new Date(),
+      type
+    };
+    setMessages(prev => [...prev, newMessage]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!inputText.trim()) return;
+
+    const userMessage = inputText.trim();
+    setInputText("");
+    addMessage(userMessage, "user");
     setLoading(true);
-    setResponse(null);
+
     try {
       const res = await fetch("http://localhost:8000/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_answer: userAnswer }),
+        body: JSON.stringify({ user_answer: userMessage }),
       });
-      const data = await res.json();
-      setResponse(data);
+      const data: ChatResponse = await res.json();
+      
+      if (data && "error" in data) {
+        addMessage(data.error || "An unknown error occurred", "bot", "error");
+      } else if (data && data.follow_up_question) {
+        let botResponse = data.follow_up_question;
+        if (data.triage_level) {
+          botResponse = `Triage Level: ${data.triage_level}\n\n${botResponse}`;
+        }
+        addMessage(botResponse, "bot");
+      } else {
+        addMessage("I received your message but couldn't generate a proper response. Please try again.", "bot", "error");
+      }
     } catch (err) {
-      setResponse({ error: "Failed to get response from server." });
+      addMessage("Sorry, I'm having trouble connecting to the server. Please try again later.", "bot", "error");
     }
     setLoading(false);
   };
 
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as any);
+    }
+  };
+
   return (
-    <div style={{ maxWidth: 500, margin: "2rem auto", fontFamily: "sans-serif" }}>
-      <h2>Triage Chat</h2>
-      <form onSubmit={handleSubmit}>
-        <textarea
-          rows={4}
-          style={{ width: "100%" }}
-          value={userAnswer}
-          onChange={(e) => setUserAnswer(e.target.value)}
-          placeholder="Describe your symptoms..."
-        />
-        <button type="submit" disabled={loading || !userAnswer}>
-          {loading ? "Sending..." : "Send"}
-        </button>
-      </form>
-      {response && (
-        <div style={{ marginTop: 20 }}>
-          {"error" in response ? (
-            <div style={{ color: "red" }}>{response.error}</div>
-          ) : (
-            <>
-              <div>
-                <strong>Bot:</strong> {response.follow_up_question}
-              </div>
-            </>
-          )}
+    <div className="app">
+      <div className="chat-container">
+        <div className="chat-header">
+          <div className="header-content">
+            <div className="vet-icon">🏥</div>
+            <div>
+              <h1>VetBox Triage</h1>
+              <p>AI-powered veterinary triage assistant</p>
+            </div>
+          </div>
         </div>
-      )}
+        
+        <div className="messages-container">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`message ${message.sender} ${message.type === "error" ? "error" : ""}`}
+            >
+              <div className="message-content">
+                <div className="message-text">
+                  {message.text.split('\n').map((line, index) => (
+                    <React.Fragment key={index}>
+                      {line}
+                      {index < message.text.split('\n').length - 1 && <br />}
+                    </React.Fragment>
+                  ))}
+                </div>
+                <div className="message-time">
+                  {message.timestamp.toLocaleTimeString([], { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          {loading && (
+            <div className="message bot">
+              <div className="message-content">
+                <div className="typing-indicator">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <div ref={messagesEndRef} />
+        </div>
+        
+        <div className="input-container">
+          <form onSubmit={handleSubmit} className="input-form">
+            <div className="input-wrapper">
+              <textarea
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Describe your pet's symptoms..."
+                className="message-input"
+                rows={1}
+                disabled={loading}
+              />
+              <button 
+                type="submit" 
+                disabled={loading || !inputText.trim()}
+                className="send-button"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M2 21L23 12L2 3V10L17 12L2 14V21Z" fill="currentColor"/>
+                </svg>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }
