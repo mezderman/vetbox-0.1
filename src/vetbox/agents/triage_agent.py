@@ -34,13 +34,18 @@ class TriageAgent:
         self.case_data = CaseData()
         self.rule_engine = RuleEngine(rules or [])
         self.follow_up_generator = FollowUpQuestionGenerator()
+        # Track the current question context for precise condition extraction
+        self.current_question_context = None
 
     async def run_async(self, user_response: str) -> TriageOutput:
         # Extract conditions from user response
         conditions_extractor_agent = ConditionsExtractorAgent()
+        
+        # Pass the current question context to help with precise extraction
         conditions = await conditions_extractor_agent.run_async(
             question="What symptoms is your pet experiencing?",
-            answer=user_response
+            answer=user_response,
+            question_context=self.current_question_context
         )
         print("[Conditions]", conditions)
 
@@ -50,6 +55,8 @@ class TriageAgent:
         print("[Case Data]", current_case)
 
         follow_up_question = None
+        # Reset question context for the next iteration
+        self.current_question_context = None
 
         # First, try to find a best matching rule (all conditions satisfied)
         best_rule = self.rule_engine.find_best_matching_rule(current_case)
@@ -60,6 +67,8 @@ class TriageAgent:
             missing_conditions = self.rule_engine.get_missing_conditions(best_rule, current_case)
             if missing_conditions:
                 print("[Missing Conditions for Best Rule]", missing_conditions)
+                # Store the context for the next question
+                self.current_question_context = missing_conditions[0]
                 # Generate follow-up question for the first missing condition
                 follow_up_question = await self.follow_up_generator.run_async(
                     case_data=current_case,
@@ -85,6 +94,8 @@ class TriageAgent:
                 missing_conditions = self.rule_engine.get_missing_conditions(candidate_rule, current_case)
                 if missing_conditions:
                     print("[Missing Conditions for Candidate Rule]", missing_conditions)
+                    # Store the context for the next question
+                    self.current_question_context = missing_conditions[0]
                     # Generate follow-up question for the first missing condition
                     follow_up_question = await self.follow_up_generator.run_async(
                         case_data=current_case,

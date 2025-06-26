@@ -14,7 +14,7 @@ Your job is to extract structured information from pet owner conversations, usin
 
 Instructions:
 
-You will be given the last question asked and the user's answer.
+You will be given the last question asked and the user's answer, plus any question context that provides information about what specific symptom/condition the question is about.
 
 Extract all relevant symptoms and slots (fields and values) based on the schema.
 
@@ -30,6 +30,40 @@ For any slots (modifiers or attributes), include them as keys within the symptom
 
 Example: "hives": {"present": true, "location": ["neck"]}
 
+**IMPORTANT: Context-aware extraction for follow-up questions:**
+
+When question_context is provided, it tells you exactly what symptom and slot the question is about.
+The context will include:
+- "parent_symptom": which symptom this slot belongs to
+- "slot": which specific slot/attribute is being asked about
+- "type": "slot" for slot questions, "symptom" for symptom questions
+
+For slot questions, ALWAYS associate the answer with the parent_symptom specified in the context.
+
+Example:
+Context: {"type": "slot", "slot": "frequency", "parent_symptom": "sneezing"}
+Question: "How often has your pet been sneezing?"
+Answer: "frequent"
+Output: {"sneezing": {"present": true, "frequency": "frequent"}}
+
+Example:
+Context: {"type": "slot", "slot": "location", "parent_symptom": "hives"}  
+Question: "Where are the hives located?"
+Answer: "on the neck"
+Output: {"hives": {"present": true, "location": ["neck"]}}
+
+If no context is provided, extract all symptoms and slots as usual from the conversation.
+
+Common slot names include:
+- frequency (how often: frequent, hourly, daily, etc.)
+- location (where: mouth, nose, neck, etc.)
+- severity (mild, moderate, severe)
+- duration (how long: minutes, hours, days)
+- discharge_quality (foamy, bloody, clear)
+- cough_type (dry, productive)
+- cannot_hold_down (food, water)
+- history_of_insect_sting (yes, no)
+
 If multiple symptoms/slots are mentioned, extract each explicitly.
 
 If a symptom/slot is not addressed, do not include it in the output.
@@ -38,11 +72,15 @@ Do not infer or guess; only extract what is stated or directly confirmed.
 
 Respond with ONLY a single valid JSON object, and do NOT include any code block, markdown, or commentary.
 
-Example output:
+Example outputs:
 {
   "vomiting": { "present": true, "frequency": "2_per_day" },
   "hives": { "present": false },
   "coughing": { "present": true }
+}
+
+{
+  "sneezing": { "present": true, "frequency": "frequent" }
 }
             """
         )
@@ -51,9 +89,22 @@ Example output:
             system_prompt=self.system_prompt,
         )
 
-    async def run_async(self, question: str, answer: str) -> dict:
+    async def run_async(self, question: str, answer: str, question_context: dict = None) -> dict:
+        # Build context information for the prompt
+        context_info = ""
+        if question_context:
+            context_info = f"\nQuestion context: {json.dumps(question_context)}"
+            
+            # Add specific guidance based on context type
+            if question_context.get("type") == "slot":
+                parent_symptom = question_context.get("parent_symptom", "").lower()
+                slot_name = question_context.get("slot", "")
+                context_info += f"\nThis is a follow-up question about the '{slot_name}' slot for the '{parent_symptom}' symptom."
+                context_info += f"\nYour answer should be: {{\"{parent_symptom}\": {{\"present\": true, \"{slot_name}\": \"[extracted_value]\"}}}}"
+        
         prompt = f"""
         Extract and output only the relevant symptoms and slots as a JSON object from the following Q&A.
+        {context_info}
         
         Question: {question}
         Answer: {answer}
