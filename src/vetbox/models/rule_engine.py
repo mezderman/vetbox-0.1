@@ -64,6 +64,18 @@ class RuleEngine:
                 "value": value,
                 "parent_symptom": condition.parent_symptom.code if condition.parent_symptom else None
             }
+        elif condition.condition_type == "attribute":
+            # Parse value as JSON if possible
+            try:
+                value = json.loads(condition.value) if condition.value and condition.value.startswith("[") else condition.value
+            except Exception:
+                value = condition.value
+            return {
+                "type": "attribute",
+                "attribute": condition.attribute.code if condition.attribute else None,
+                "operator": condition.operator,
+                "value": value
+            }
         return {}
 
     @staticmethod
@@ -98,6 +110,7 @@ class RuleEngine:
                 for cond in rule.conditions:
                     cond.symptom
                     cond.slot_name
+                    cond.attribute
                     cond.parent_symptom
             return cls.from_db_rules(rules)
         finally:
@@ -224,6 +237,31 @@ class RuleEngine:
                 return float(actual_value) > float(expected_value)
             elif operator == 'less_than':
                 return float(actual_value) < float(expected_value)
+                
+        elif condition_type == 'attribute':
+            attribute_name = condition.get('attribute')
+            operator = condition.get('operator')
+            expected_value = condition.get('value')
+            
+            # Get patient/case attributes (assume they're stored at top level of case_data)
+            # case_data structure: {"symptoms": {...}, "patient": {"sex": "male", "age": 5}}
+            patient_data = case_data.get('patient', {})
+            actual_value = patient_data.get(attribute_name)
+            
+            if actual_value is None:
+                return False
+                
+            print(f"[DEBUG] Checking attribute condition: {attribute_name} = '{actual_value}' against expected '{expected_value}' with operator '{operator}'")
+            
+            # Handle different operators (sync version - only exact matching)
+            if operator == '==' or operator == 'equals':
+                return self._exact_match_condition(actual_value, expected_value)
+            elif operator == 'contains':
+                return expected_value in actual_value
+            elif operator == 'greater_than':
+                return float(actual_value) > float(expected_value)
+            elif operator == 'less_than':
+                return float(actual_value) < float(expected_value)
             
         return False
     
@@ -312,5 +350,43 @@ class RuleEngine:
                 return float(actual_value) > float(expected_value)
             elif operator == 'less_than':
                 return float(actual_value) < float(expected_value)
+                
+        elif condition_type == 'attribute':
+            attribute_name = condition.get('attribute')
+            operator = condition.get('operator')
+            expected_value = condition.get('value')
             
+            # Get patient/case attributes (assume they're stored at top level of case_data)
+            # case_data structure: {"symptoms": {...}, "patient": {"sex": "male", "age": 5}}
+            patient_data = case_data.get('patient', {})
+            actual_value = patient_data.get(attribute_name)
+            
+            if actual_value is None:
+                return False
+                
+            print(f"[DEBUG] Checking attribute condition: {attribute_name} = '{actual_value}' against expected '{expected_value}' with operator '{operator}'")
+            
+            # Handle different operators with semantic validation
+            if operator == '==' or operator == 'equals':
+                # First try exact matching
+                if self._exact_match_condition(actual_value, expected_value):
+                    print(f"[DEBUG] Exact match successful")
+                    return True
+                
+                # If exact match fails and we have a list of expected values, try semantic validation
+                if isinstance(expected_value, list):
+                    print(f"[DEBUG] Exact match failed, trying semantic validation...")
+                    is_semantic_match = await self._semantic_validate_condition(str(actual_value), [str(v) for v in expected_value])
+                    print(f"[DEBUG] Semantic validation result: {is_semantic_match}")
+                    return is_semantic_match
+                
+                return False
+                
+            elif operator == 'contains':
+                return expected_value in actual_value
+            elif operator == 'greater_than':
+                return float(actual_value) > float(expected_value)
+            elif operator == 'less_than':
+                return float(actual_value) < float(expected_value)
+             
         return False

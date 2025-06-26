@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from sqlalchemy.orm import Session
 from vetbox.db.database import SessionLocal, Base, engine
-from vetbox.db.models import Rule, RuleCondition, Symptom, SlotName
+from vetbox.db.models import Rule, RuleCondition, Symptom, SlotName, PatientAttribute
 
 # Change this path if you move rules.json elsewhere
 DATA_PATH = Path(__file__).parent.parent / "data" / "rules.json"
@@ -25,6 +25,15 @@ def get_or_create_slot(session: Session, code: str):
         session.refresh(slot)
     return slot
 
+def get_or_create_patient_attribute(session: Session, code: str):
+    attribute = session.query(PatientAttribute).filter_by(code=code).first()
+    if not attribute:
+        attribute = PatientAttribute(code=code, display_name=code, description="", data_type="string")
+        session.add(attribute)
+        session.commit()
+        session.refresh(attribute)
+    return attribute
+
 def clear_all_data(session: Session):
     """Delete all data from all tables in the correct order (respecting foreign keys)"""
     print("Clearing all existing data...")
@@ -34,6 +43,7 @@ def clear_all_data(session: Session):
     session.query(Rule).delete() 
     session.query(Symptom).delete()
     session.query(SlotName).delete()
+    session.query(PatientAttribute).delete()
     
     session.commit()
     print("All data cleared successfully.")
@@ -89,6 +99,21 @@ def main():
                         condition_type="slot",
                         slot_name_id=slot.id,
                         parent_symptom_id=parent_symptom.id,
+                        operator=cond.get("operator"),
+                        value=value_str
+                    )
+                elif cond["type"] == "attribute":
+                    attribute = get_or_create_patient_attribute(session, cond["attribute"])
+                    value = cond.get("value")
+                    # Store value as string (JSON if list)
+                    if isinstance(value, list):
+                        value_str = json.dumps(value)
+                    else:
+                        value_str = str(value) if value is not None else None
+                    condition = RuleCondition(
+                        rule_id=rule.id,
+                        condition_type="attribute",
+                        attribute_id=attribute.id,
                         operator=cond.get("operator"),
                         value=value_str
                     )

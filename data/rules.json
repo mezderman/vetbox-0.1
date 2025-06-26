@@ -6,6 +6,12 @@
     "rationale": "Hives on mouth or nose",
     "conditions": [
       {
+        "type": "attribute",
+        "attribute": "sex", 
+        "operator": "==",
+        "value": ["male"]
+      },
+      {
         "type": "symptom",
         "symptom": "HIVES"
       },
@@ -13,7 +19,10 @@
         "type": "slot",
         "slot": "LOCATION",
         "operator": "==",
-        "value": ["mouth", "nose"],
+        "value": [
+          "mouth",
+          "nose"
+        ],
         "parent_symptom": "HIVES"
       }
     ]
@@ -32,7 +41,10 @@
         "type": "slot",
         "slot": "CANNOT_HOLD_DOWN",
         "operator": "==",
-        "value": ["food", "water"],
+        "value": [
+          "food",
+          "water"
+        ],
         "parent_symptom": "VOMITING"
       }
     ]
@@ -51,7 +63,10 @@
         "type": "slot",
         "slot": "FREQUENCY",
         "operator": "==",
-        "value": ["every hour", "hourly"],
+        "value": [
+          "every hour",
+          "hourly"
+        ],
         "parent_symptom": "VOMITING"
       },
       {
@@ -74,30 +89,36 @@
         "type": "slot",
         "slot": "HISTORY_OF_INSECT_STING",
         "operator": "==",
-        "value": ["no"],
+        "value": [
+          "no"
+        ],
         "parent_symptom": "SWOLLEN_EYELIDS"
       },
       {
         "type": "slot",
         "slot": "PROGRESSION_OF_SWELLING",
         "operator": "==",
-        "value": ["no"],
+        "value": [
+          "no"
+        ],
         "parent_symptom": "SWOLLEN_EYELIDS"
       },
       {
         "type": "slot",
         "slot": "HIVES_ON_BODY",
         "operator": "==",
-        "value": ["no"],
+        "value": [
+          "no"
+        ],
         "parent_symptom": "SWOLLEN_EYELIDS"
       }
     ]
   },
   {
-    "id": 61,
-    "rule_code": "E-61",
+    "id": 101,
+    "rule_code": "E-101",
     "priority": "Emergency",
-    "rationale": "Productive cough with foamy discharge",
+    "rationale": "Productive cough with foamy, green, and yellow discharge",
     "conditions": [
       {
         "type": "symptom",
@@ -107,14 +128,20 @@
         "type": "slot",
         "slot": "COUGH_TYPE",
         "operator": "==",
-        "value": ["productive"],
+        "value": [
+          "productive"
+        ],
         "parent_symptom": "COUGHING"
       },
       {
         "type": "slot",
         "slot": "DISCHARGE_QUALITY",
         "operator": "==",
-        "value": ["foamy"],
+        "value": [
+          "foamy",
+          "green",
+          "yellow"
+        ],
         "parent_symptom": "COUGHING"
       }
     ]
@@ -133,7 +160,11 @@
         "type": "slot",
         "slot": "FREQUENCY",
         "operator": "==",
-        "value": ["more than a few times", "frequent", "multiple times"],
+        "value": [
+          "more than a few times",
+          "frequent",
+          "multiple times"
+        ],
         "parent_symptom": "SNEEZING"
       },
       {
@@ -149,5 +180,4 @@
     ],
     "logic": "AND SNEEZING + FREQUENCY AND (CONGESTION OR NASAL_DISCHARGE)"
   }
-  
 ]

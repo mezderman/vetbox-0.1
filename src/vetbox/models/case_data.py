@@ -5,17 +5,19 @@ class CaseData:
     A class to store and manage veterinary case data.
     
     This class maintains a dictionary of symptoms and their associated data,
-    where each symptom can have a presence status and multiple slots (attributes).
+    plus patient attributes like sex, age, weight, etc.
     
     Attributes:
-        data (Dict[str, Dict[str, Any]]): The main storage for case data.
+        data (Dict[str, Dict[str, Any]]): The main storage for symptom data.
             Keys are symptom names, values are dictionaries containing 'present'
             status and any additional slot values.
+        patient (Dict[str, Any]): Patient attributes like sex, age, weight, breed.
     """
     
     def __init__(self):
         """Initialize an empty case data store."""
         self.data: Dict[str, Dict[str, Any]] = {}
+        self.patient: Dict[str, Any] = {}
     
     def add_symptom(self, symptom_name: str, present: bool) -> None:
         """
@@ -42,6 +44,16 @@ class CaseData:
         if symptom_name not in self.data:
             self.data[symptom_name] = {"present": None}
         self.data[symptom_name][slot_name] = value
+
+    def add_patient_attribute(self, attribute_name: str, value: Any) -> None:
+        """
+        Add or update a patient attribute.
+        
+        Args:
+            attribute_name: The name of the patient attribute (sex, age, weight, etc.)
+            value: The value to set for the attribute
+        """
+        self.patient[attribute_name] = value
     
     def get_symptom(self, symptom_name: str) -> Optional[Dict[str, Any]]:
         """

@@ -16,12 +16,13 @@ Instructions:
 
 You will be given the last question asked and the user's answer, plus any question context that provides information about what specific symptom/condition the question is about.
 
-Extract all relevant symptoms and slots (fields and values) based on the schema.
+Extract all relevant symptoms and patient attributes based on the schema.
 
 Output your extraction as a valid JSON object using the canonical field and slot names.
 
 Extraction rules:
 
+**SYMPTOMS:**
 For each symptom, extract an object with "present" set to true if the symptom is confirmed, false if explicitly denied, or null if uncertain or not addressed.
 
 Example: "coughing": {"present": true}
@@ -29,6 +30,16 @@ Example: "coughing": {"present": true}
 For any slots (modifiers or attributes), include them as keys within the symptom object, using the canonical slot names.
 
 Example: "hives": {"present": true, "location": ["neck"]}
+
+**PATIENT ATTRIBUTES:**
+Extract patient information into a "patient" object. Common attributes include:
+- sex: "male", "female" 
+- age: numeric value (in years)
+- species: "dog", "cat", "bird", etc.
+- breed: "labrador", "siamese", etc.
+- weight: numeric value (in lbs or kg)
+
+Example: "patient": {"sex": "male", "age": 5, "species": "dog"}
 
 **IMPORTANT: Context-aware extraction for follow-up questions:**
 
@@ -52,7 +63,7 @@ Question: "Where are the hives located?"
 Answer: "on the neck"
 Output: {"hives": {"present": true, "location": ["neck"]}}
 
-If no context is provided, extract all symptoms and slots as usual from the conversation.
+If no context is provided, extract all symptoms and patient attributes as usual from the conversation.
 
 Common slot names include:
 - frequency (how often: frequent, hourly, daily, etc.)
@@ -76,11 +87,16 @@ Example outputs:
 {
   "vomiting": { "present": true, "frequency": "2_per_day" },
   "hives": { "present": false },
-  "coughing": { "present": true }
+  "coughing": { "present": true },
+  "patient": { "sex": "male", "age": 3 }
 }
 
 {
   "sneezing": { "present": true, "frequency": "frequent" }
+}
+
+{
+  "patient": { "sex": "female", "species": "cat", "age": 7 }
 }
             """
         )

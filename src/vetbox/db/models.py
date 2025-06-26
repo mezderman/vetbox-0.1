@@ -24,6 +24,14 @@ class SlotName(Base):
     description = Column(Text)
     unit = Column(String(32))
 
+class PatientAttribute(Base):
+    __tablename__ = "patient_attributes"
+    id = Column(Integer, primary_key=True)
+    code = Column(String(64), unique=True, nullable=False)
+    display_name = Column(String(128), nullable=False)
+    description = Column(Text)
+    data_type = Column(String(32))  # 'string', 'integer', 'float', 'boolean'
+
 class Rule(Base):
     __tablename__ = "rules"
     id = Column(Integer, primary_key=True)
@@ -36,9 +44,10 @@ class RuleCondition(Base):
     __tablename__ = "rule_conditions"
     id = Column(Integer, primary_key=True)
     rule_id = Column(Integer, ForeignKey("rules.id", ondelete="CASCADE"), nullable=False)
-    condition_type = Column(String(16), nullable=False)  # 'symptom' or 'slot'
+    condition_type = Column(String(16), nullable=False)  # 'symptom', 'slot', or 'attribute'
     symptom_id = Column(Integer, ForeignKey("symptoms.id"))
     slot_name_id = Column(Integer, ForeignKey("slot_names.id"))
+    attribute_id = Column(Integer, ForeignKey("patient_attributes.id"))
     operator = Column(String(8))
     value = Column(String(64))
     parent_symptom_id = Column(Integer, ForeignKey("symptoms.id"))
@@ -46,6 +55,7 @@ class RuleCondition(Base):
     rule = relationship("Rule", back_populates="conditions")
     symptom = relationship("Symptom", foreign_keys=[symptom_id])
     slot_name = relationship("SlotName")
+    attribute = relationship("PatientAttribute")
     parent_symptom = relationship("Symptom", foreign_keys=[parent_symptom_id])
 
 class SuspiciousCode(Base):
