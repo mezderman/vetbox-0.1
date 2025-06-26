@@ -64,7 +64,7 @@ class TriageAgent:
             print("[Best Matching Rule]", best_rule.get('rule_code'), best_rule.get('rationale'))
             
             # Check if there are still missing conditions (e.g., slot conditions)
-            missing_conditions = self.rule_engine.get_missing_conditions(best_rule, current_case)
+            missing_conditions = await self.rule_engine.get_missing_conditions_async(best_rule, current_case)
             if missing_conditions:
                 print("[Missing Conditions for Best Rule]", missing_conditions)
                 # Store the context for the next question
@@ -91,7 +91,7 @@ class TriageAgent:
                 print("[Candidate Rule]", candidate_rule.get('rule_code'), candidate_rule.get('rationale'))
                 
                 # Find missing conditions to ask about
-                missing_conditions = self.rule_engine.get_missing_conditions(candidate_rule, current_case)
+                missing_conditions = await self.rule_engine.get_missing_conditions_async(candidate_rule, current_case)
                 if missing_conditions:
                     print("[Missing Conditions for Candidate Rule]", missing_conditions)
                     # Store the context for the next question

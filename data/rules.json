@@ -12,7 +12,7 @@
       {
         "type": "slot",
         "slot": "LOCATION",
-        "operator": "in",
+        "operator": "==",
         "value": ["mouth", "nose"],
         "parent_symptom": "HIVES"
       }
@@ -132,7 +132,7 @@
       {
         "type": "slot",
         "slot": "FREQUENCY",
-        "operator": "in",
+        "operator": "==",
         "value": ["more than a few times", "frequent", "multiple times"],
         "parent_symptom": "SNEEZING"
       },
