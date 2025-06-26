@@ -58,7 +58,6 @@ Example output:
         Question: {question}
         Answer: {answer}
         """
-        print("[ConditionsExtractorAgent prompt]", prompt)
         result = await self.agent.run(prompt)
         
         try:
@@ -66,7 +65,7 @@ Example output:
             result_str = result.output if hasattr(result, 'output') else str(result)
             # Parse the output string as JSON
             output = json.loads(result_str)
-            print("[Raw LLM Output]", output)
+            print("[Extracted Condition from user message]", output)
             return output
         except (json.JSONDecodeError, AttributeError) as e:
             print("[Error] Failed to parse LLM output as JSON:", str(result))

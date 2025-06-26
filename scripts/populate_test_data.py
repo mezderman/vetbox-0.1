@@ -25,6 +25,19 @@ def get_or_create_slot(session: Session, code: str):
         session.refresh(slot)
     return slot
 
+def clear_all_data(session: Session):
+    """Delete all data from all tables in the correct order (respecting foreign keys)"""
+    print("Clearing all existing data...")
+    
+    # Delete in order to respect foreign key constraints
+    session.query(RuleCondition).delete()
+    session.query(Rule).delete() 
+    session.query(Symptom).delete()
+    session.query(SlotName).delete()
+    
+    session.commit()
+    print("All data cleared successfully.")
+
 def main():
     # Create tables if they don't exist
     Base.metadata.create_all(bind=engine)
@@ -34,57 +47,65 @@ def main():
 
     session = SessionLocal()
 
-    for rule_data in rules_data:
-        # Check if rule already exists (by id or rule_code)
-        existing_rule = session.query(Rule).filter(
-            (Rule.id == rule_data["id"]) | (Rule.rule_code == rule_data["rule_code"])
-        ).first()
-        if existing_rule:
-            print(f"Rule with id={rule_data['id']} or rule_code={rule_data['rule_code']} already exists. Skipping.")
-            continue
+    try:
+        # Clear all existing data first
+        clear_all_data(session)
+        
+        print(f"Inserting {len(rules_data)} rules from {DATA_PATH}...")
 
-        rule = Rule(
-            id=rule_data["id"],
-            rule_code=rule_data["rule_code"],
-            priority=rule_data["priority"],
-            rationale=rule_data["rationale"]
-        )
-        session.add(rule)
-        session.flush()  # Get rule.id if autoincrement
-
-        for cond in rule_data["conditions"]:
-            if cond["type"] == "symptom":
-                symptom = get_or_create_symptom(session, cond["symptom"])
-                condition = RuleCondition(
-                    rule_id=rule.id,
-                    condition_type="symptom",
-                    symptom_id=symptom.id
-                )
-            elif cond["type"] == "slot":
-                slot = get_or_create_slot(session, cond["slot"])
-                parent_symptom = get_or_create_symptom(session, cond["parent_symptom"])
-                value = cond.get("value")
-                # Store value as string (JSON if list)
-                if isinstance(value, list):
-                    value_str = json.dumps(value)
+        for rule_data in rules_data:
+            print(f"Creating rule: {rule_data['rule_code']} (ID: {rule_data['id']})")
+            
+            # Create new rule
+            rule = Rule(
+                id=rule_data["id"],
+                rule_code=rule_data["rule_code"],
+                priority=rule_data["priority"],
+                rationale=rule_data["rationale"]
+            )
+            session.add(rule)
+            session.flush()  # Get rule.id if needed
+            
+            # Add conditions
+            for cond in rule_data["conditions"]:
+                if cond["type"] == "symptom":
+                    symptom = get_or_create_symptom(session, cond["symptom"])
+                    condition = RuleCondition(
+                        rule_id=rule.id,
+                        condition_type="symptom",
+                        symptom_id=symptom.id
+                    )
+                elif cond["type"] == "slot":
+                    slot = get_or_create_slot(session, cond["slot"])
+                    parent_symptom = get_or_create_symptom(session, cond["parent_symptom"])
+                    value = cond.get("value")
+                    # Store value as string (JSON if list)
+                    if isinstance(value, list):
+                        value_str = json.dumps(value)
+                    else:
+                        value_str = str(value) if value is not None else None
+                    condition = RuleCondition(
+                        rule_id=rule.id,
+                        condition_type="slot",
+                        slot_name_id=slot.id,
+                        parent_symptom_id=parent_symptom.id,
+                        operator=cond.get("operator"),
+                        value=value_str
+                    )
                 else:
-                    value_str = str(value) if value is not None else None
-                condition = RuleCondition(
-                    rule_id=rule.id,
-                    condition_type="slot",
-                    slot_name_id=slot.id,
-                    parent_symptom_id=parent_symptom.id,
-                    operator=cond.get("operator"),
-                    value=value_str
-                )
-            else:
-                continue  # Unknown type, skip
+                    continue  # Unknown type, skip
 
-            session.add(condition)
+                session.add(condition)
 
-    session.commit()
-    session.close()
-    print("Rules and conditions populated successfully.")
+        session.commit()
+        print("All rules and conditions inserted successfully.")
+        
+    except Exception as e:
+        session.rollback()
+        print(f"Error occurred: {e}")
+        raise
+    finally:
+        session.close()
 
 if __name__ == "__main__":
     main()

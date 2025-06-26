@@ -43,20 +43,20 @@ class TriageAgent:
             answer=user_response
         )
         print("[Conditions]", conditions)
-        
+
         # Update case data with new conditions
         self.case_data.merge_extraction(conditions)
         current_case = self.case_data.to_dict()
         print("[Case Data]", current_case)
 
-        # Find best matching rule based on current case
-        best_rule = self.rule_engine.find_best_matching_rule(current_case)
         follow_up_question = None
 
+        # First, try to find a best matching rule (all conditions satisfied)
+        best_rule = self.rule_engine.find_best_matching_rule(current_case)
         if best_rule:
             print("[Best Matching Rule]", best_rule.get('rule_code'), best_rule.get('rationale'))
-
-            # If the best rule has missing conditions, generate a follow-up question
+            
+            # Check if there are still missing conditions (e.g., slot conditions)
             missing_conditions = self.rule_engine.get_missing_conditions(best_rule, current_case)
             if missing_conditions:
                 print("[Missing Conditions for Best Rule]", missing_conditions)
@@ -66,10 +66,38 @@ class TriageAgent:
                     missing_condition=missing_conditions[0]
                 )
                 print("[Follow-up Question]", follow_up_question)
+            else:
+                # All conditions satisfied - provide triage recommendation
+                priority = best_rule.get('priority', 'Routine')
+                follow_up_question = f"Based on your pet's symptoms, this appears to be a {priority.lower()} case. I recommend: {best_rule.get('rationale')}. Please consult with a veterinarian."
+                
         else:
-            follow_up_question = "Based on the current symptoms, this appears to be a routine case. Please consult with a veterinarian."
+            # No best matching rule found, but check for candidate rules
+            print("[No Best Matching Rule] Checking candidate rules...")
+            candidate_rules = self.rule_engine.find_candidate_rules(current_case)
+            
+            if candidate_rules:
+                # Use the highest priority candidate rule for follow-up questions
+                candidate_rule = candidate_rules[0]  # Rules are sorted by priority
+                print("[Candidate Rule]", candidate_rule.get('rule_code'), candidate_rule.get('rationale'))
+                
+                # Find missing conditions to ask about
+                missing_conditions = self.rule_engine.get_missing_conditions(candidate_rule, current_case)
+                if missing_conditions:
+                    print("[Missing Conditions for Candidate Rule]", missing_conditions)
+                    # Generate follow-up question for the first missing condition
+                    follow_up_question = await self.follow_up_generator.run_async(
+                        case_data=current_case,
+                        missing_condition=missing_conditions[0]
+                    )
+                    print("[Follow-up Question]", follow_up_question)
+                else:
+                    # This shouldn't happen, but handle it gracefully
+                    follow_up_question = "Please provide more details about your pet's symptoms."
+            else:
+                # No matching rules at all
+                follow_up_question = "Based on the current symptoms, this appears to be a routine case. Please consult with a veterinarian for a proper assessment."
 
         return TriageOutput(
             follow_up_question=follow_up_question
         )
-

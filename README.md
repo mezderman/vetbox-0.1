@@ -105,21 +105,49 @@ PYTHONPATH=src python scripts/create_tables.py
 
 This will create all tables in the database according to your SQLAlchemy models.
 
-### 3. Populate Test Data
+### 3. Populate/Update Rules Data
 
-Make sure your test data file exists at `data/rules.json`.
+Make sure your rules data file exists at `data/rules.json`.
 
-Run the population script:
+Run the population script to add new rules or update existing ones:
 
 ```bash
 PYTHONPATH=src python scripts/populate_test_data.py
 ```
 
-This will insert rules and related data into the database, skipping any rules that already exist.
+**What this script does:**
+- **Creates new rules** if they don't exist in the database
+- **Updates existing rules** if they already exist (by ID or rule code)
+- **Replaces conditions** completely for updated rules
+- **Creates symptoms and slots** automatically as needed
+
+**Example output:**
+```
+Updating existing rule: E-46 (ID: 46)
+Updating existing rule: E-50 (ID: 50)
+Creating new rule: E-51 (ID: 51)
+Rules and conditions processed successfully (inserted/updated).
+```
+
+**Safe to run multiple times:** The script intelligently handles both new and existing data without creating duplicates.
+
+### 4. Modifying Rules
+
+To modify existing rules:
+
+1. **Edit `data/rules.json`** with your changes
+2. **Keep the same ID and rule_code** for existing rules
+3. **Run the populate script** - it will update the database with your changes
+
+To add new rules:
+
+1. **Add new rule entries** to `data/rules.json` with unique IDs
+2. **Run the populate script** - new rules will be inserted
 
 ---
 
 **Troubleshooting:**
 - Ensure Docker is running and the Postgres container is healthy.
 - If you change your database connection settings, update the `DATABASE_URL` in your `.env` file.
-- If you modify your models, re-run the table creation script. 
+- If you modify your models, re-run the table creation script.
+- If you get connection errors, make sure the database is running with `docker-compose up -d`
