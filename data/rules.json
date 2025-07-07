@@ -12,6 +12,19 @@
     ]
   },
   {
+    "id": 131,
+    "rule_code": "S-131",
+    "priority": "Sick",
+    "rationale": "Dietary change causing intestinal upset",
+    "conditions": [
+      { "type": "symptom", "symptom": ["VOMITING"] },
+      { "type": "symptom", "symptom": ["DIARRHEA"] },
+      { "type": "symptom", "symptom": ["CHANGE_IN_DIET"] },
+      { "type": "symptom", "symptom": ["EATING"] },
+      { "type": "symptom", "symptom": ["NOT_LETHARGIC"] }
+    ]
+  },
+  {
     "id": 132,
     "rule_code": "U-132",
     "priority": "Urgent",
@@ -20,6 +33,37 @@
       { "type": "symptom", "symptom": ["VOMITING"] },
       { "type": "symptom", "symptom": ["DIARRHEA"] },
       { "type": "attribute", "attribute": "AGE", "operator": "<", "value": ["1 year"] }
+    ]
+  },
+  {
+    "id": 133,
+    "rule_code": "U-133",
+    "priority": "Urgent",
+    "rationale": "Gastroenteritis, Pancreatitis, Infectious, Parasites, Dietary indiscretion, Toxin",
+    "conditions": [
+      { "type": "symptom", "symptom": ["VOMITING"] },
+      { "type": "symptom", "symptom": ["DIARRHEA"] },
+      { "type": "symptom", "symptom": ["LETHARGIC"] }
+    ]
+  },
+  {
+    "id": 135,
+    "rule_code": "E-135",
+    "priority": "Emergency",
+    "rationale": "Foreign body obstruction, gastroenteritis",
+    "conditions": [
+      { "type": "attribute", "attribute": "SPECIES", "operator": "==", "value": ["CAT"] },
+      { "type": "symptom", "symptom": ["VOMITING"] },
+      { "type": "symptom", "symptom": ["LETHARGY"] },
+      {
+        "type": "slot",
+        "slot": "HISTORY_OF_EATING",
+        "operator": "IN",
+        "value": [
+          "string", "dental floss", "hair ties", "ribbon", "tinsel"
+        ],
+        "parent_symptom": "VOMITING"
+      }
     ]
   }
 ]

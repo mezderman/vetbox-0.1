@@ -1,4 +1,5 @@
 import os
+import json
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from vetbox.agents.conditions_extractor_agent import ConditionsExtractorAgent
@@ -78,7 +79,11 @@ class TriageAgent:
             else:
                 # All conditions satisfied - provide triage recommendation
                 priority = best_rule.get('priority', 'Routine')
-                follow_up_question = f"Based on your pet's symptoms, this appears to be a {priority.lower()} case. I recommend: {best_rule.get('rationale')}. Please consult with a veterinarian."
+                follow_up_question = (
+                    f"Based on your pet's symptoms, this appears to be a {priority.lower()} case.\n"
+                    f"Rule matched: {best_rule.get('rule_code')}\n"
+                    f"Case data: {json.dumps(current_case, indent=2)}"
+                )
                 
         else:
             # No best matching rule found, but check for candidate rules

@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Any
-from .case_data import CaseData
 import json
+from .case_data import CaseData
 from vetbox.db.database import SessionLocal
 from vetbox.db.models import Rule
 from pydantic_ai import Agent
@@ -257,6 +257,9 @@ class RuleEngine:
                     break
             
             if all_conditions_satisfied:
+                print(f"\n[DEBUG] Found matching rule: {rule.get('rule_code')}")
+                print(f"[DEBUG] Case data that matched:")
+                print(json.dumps(case_data, indent=2))
                 return rule
         
         return None
@@ -463,7 +466,7 @@ class RuleEngine:
                 
             print(f"[DEBUG] Checking slot condition: {slot_name} = '{actual_value}' against expected '{expected_value}' with operator '{operator}'")
                 
-            # Handle different operators
+            # Handle different operators.
             if operator == '==' or operator == 'equals':
                 # First try exact matching
                 if self._exact_match_condition(actual_value, expected_value):
