@@ -1,0 +1,170 @@
+[
+    {
+      "id": 130,
+      "rule_code": "U-130",
+      "priority": "Urgent",
+      "rationale": "Dietary change causing intestinal upset",
+      "conditions": [
+        { "type": "symptom", "symptom": ["VOMITING"] },
+        { "type": "symptom", "symptom": ["DIARRHEA"] },
+        { "type": "symptom", "symptom": ["CHANGE_IN_DIET"] },
+        { "type": "symptom", "symptom": ["LETHARGIC"] }
+      ]
+    },
+    {
+      "id": 131,
+      "rule_code": "S-131",
+      "priority": "Sick",
+      "rationale": "Dietary change causing intestinal upset",
+      "conditions": [
+        { "type": "symptom", "symptom": ["VOMITING"] },
+        { "type": "symptom", "symptom": ["DIARRHEA"] },
+        { "type": "symptom", "symptom": ["CHANGE_IN_DIET"] },
+        { "type": "symptom", "symptom": ["EATING"] },
+        { "type": "symptom", "symptom": ["NOT_LETHARGIC"] }
+      ]
+    },
+    {
+      "id": 132,
+      "rule_code": "U-132",
+      "priority": "Urgent",
+      "rationale": "Dietary indiscretion, Infectious, Parasites, Toxin",
+      "conditions": [
+        { "type": "symptom", "symptom": ["VOMITING"] },
+        { "type": "symptom", "symptom": ["DIARRHEA"] },
+        { "type": "attribute", "attribute": "AGE", "operator": "<", "value": ["1 year"] }
+      ]
+    },
+    {
+      "id": 133,
+      "rule_code": "U-133",
+      "priority": "Urgent",
+      "rationale": "Gastroenteritis, Pancreatitis, Infectious, Parasites, Dietary indiscretion, Toxin",
+      "conditions": [
+        { "type": "symptom", "symptom": ["VOMITING"] },
+        { "type": "symptom", "symptom": ["DIARRHEA"] },
+        { "type": "symptom", "symptom": ["LETHARGIC"] }
+      ]
+    },
+    {
+      "id": 134,
+      "rule_code": "E-134",
+      "priority": "ER",
+      "rationale": "Foreign body obstruction, gastroenteritis",
+      "conditions": [
+        { "type": "symptom", "symptom": ["VOMITING"] },
+        { 
+          "type": "slot",
+          "slot": "HISTORY_OF_EATING",
+          "operator": "IN",
+          "value": [
+            "toy", "plastic", "corn cob", "tampon", "socks", "underwear",
+            "dental floss", "string", "rocks", "yarn", "pantyhose", "hair ties", "ribbon", "tinsel"
+          ],
+          "parent_symptom": "VOMITING"
+        },
+        { "type": "symptom", "symptom": ["LETHARGIC"] }
+      ]
+    },
+    {
+      "id": 135,
+      "rule_code": "E-135",
+      "priority": "ER",
+      "rationale": "Foreign body obstruction, gastroenteritis",
+      "conditions": [
+        { "type": "attribute", "attribute": "SPECIES", "operator": "==", "value": ["CAT"] },
+        { "type": "symptom", "symptom": ["VOMITING"] },
+        { "type": "symptom", "symptom": ["LETHARGY"] },
+        {
+          "type": "slot",
+          "slot": "HISTORY_OF_EATING",
+          "operator": "IN",
+          "value": [
+            "string", "dental floss", "hair ties", "ribbon", "tinsel"
+          ],
+          "parent_symptom": "VOMITING"
+        }
+      ]
+    },
+    {
+      "id": 136,
+      "rule_code": "U-136",
+      "priority": "Urgent",
+      "rationale": "Addisons disease, Kidney disease, Liver disease",
+      "conditions": [
+        { "type": "attribute", "attribute": "SPECIES", "operator": "==", "value": ["DOG"] },
+        { "type": "attribute", "attribute": "AGE", "operator": ">", "value": ["1 year"] },
+        { "type": "symptom", "symptom": ["VOMITING"] },
+        { "type": "symptom", "symptom": ["DIARRHEA"] },
+        { "type": "symptom", "symptom": ["LETHARGIC"] },
+        { "type": "symptom", "symptom": ["DECREASED_APPETITE"] },
+        { "type": "symptom", "symptom": ["INCREASED_DRINKING"] }
+      ]
+    },
+    {
+      "id": 137,
+      "rule_code": "E-137",
+      "priority": "ER",
+      "rationale": "Pyometra, Gastroenteritis, Leptospirosis or other infectious, pancreatitis",
+      "conditions": [
+        { "type": "attribute", "attribute": "SPECIES", "operator": "==", "value": ["DOG"] },
+        { "type": "attribute", "attribute": "AGE", "operator": ">", "value": ["1 year"] },
+        { "type": "attribute", "attribute": "GENDER", "operator": "==", "value": ["FEMALE"] },
+        { "type": "attribute", "attribute": "REPRODUCTIVE_STATUS", "operator": "==", "value": ["UNSPAYED"] },
+        { "type": "symptom", "symptom": ["VOMITING"] },
+        { "type": "symptom", "symptom": ["INCREASED_DRINKING"] },
+        { "type": "symptom", "symptom": ["INCREASED_URINATING"] },
+        { "type": "symptom", "symptom": ["LETHARGIC"] },
+        { "type": "attribute", "attribute": "HEAT_CYCLES", "operator": "==", "value": ["ONE"] },
+        { "type": "attribute", "attribute": "LAST_HEAT_CYCLE", "operator": "IN", "value": ["4-6 weeks ago"] }
+      ]
+    },
+    {
+      "id": 138,
+      "rule_code": "E-138",
+      "priority": "ER",
+      "rationale": "Pyometra",
+      "conditions": [
+        { "type": "attribute", "attribute": "SPECIES", "operator": "==", "value": ["DOG"] },
+        { "type": "attribute", "attribute": "AGE", "operator": ">", "value": ["1 year"] },
+        { "type": "attribute", "attribute": "GENDER", "operator": "==", "value": ["FEMALE"] },
+        { "type": "attribute", "attribute": "REPRODUCTIVE_STATUS", "operator": "==", "value": ["UNSPAYED"] },
+        { "type": "symptom", "symptom": ["INCREASED_DRINKING"] },
+        { "type": "symptom", "symptom": ["INCREASED_URINATING"] },
+        { "type": "symptom", "symptom": ["LETHARGIC"] },
+        { "type": "attribute", "attribute": "HEAT_CYCLES", "operator": "==", "value": ["ONE"] },
+        { "type": "attribute", "attribute": "LAST_HEAT_CYCLE", "operator": "IN", "value": ["4-6 weeks ago", "UNKNOWN"] }
+      ]
+    },
+    {
+      "id": 139,
+      "rule_code": "U-139",
+      "priority": "Urgent",
+      "rationale": "Parvovirus, gastroenteritis, parasites, dietary indiscretion, Hemorrhagic gastroenteritis",
+      "conditions": [
+        { "type": "attribute", "attribute": "SPECIES", "operator": "==", "value": ["DOG"] },
+        { "type": "symptom", "symptom": ["VOMITING"] },
+        { "type": "symptom", "symptom": ["BLOODY_DIARRHEA"] },
+        {
+          "type": "attribute",
+          "attribute": "VACCINATION_STATUS",
+          "operator": "IN",
+          "value": ["UNVACCINATED_PARVO", "PUPPY"]
+        }
+      ]
+    },
+    {
+      "id": 140,
+      "rule_code": "C-140",
+      "priority": "Sick",
+      "rationale": "Chronic vomiting, weight loss, decreased appetite",
+      "conditions": [
+        { "type": "attribute", "attribute": "SPECIES", "operator": "==", "value": ["CAT"] },
+        { "type": "attribute", "attribute": "AGE", "operator": ">", "value": ["1 year"] },
+        { "type": "symptom", "symptom": ["VOMITING"] },
+        { "type": "symptom", "symptom": ["WEIGHT_LOSS"] },
+        { "type": "symptom", "symptom": ["DECREASED_APPETITE"] }
+      ]
+    }
+  ]
+  

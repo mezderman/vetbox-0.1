@@ -1,183 +1,25 @@
 [
   {
-    "id": 46,
-    "rule_code": "E-46",
-    "priority": "Emergency",
-    "rationale": "Hives on mouth or nose",
+    "id": 130,
+    "rule_code": "U-130",
+    "priority": "Urgent",
+    "rationale": "Dietary change causing intestinal upset",
     "conditions": [
-      {
-        "type": "attribute",
-        "attribute": "sex", 
-        "operator": "==",
-        "value": ["male"]
-      },
-      {
-        "type": "symptom",
-        "symptom": "HIVES"
-      },
-      {
-        "type": "slot",
-        "slot": "LOCATION",
-        "operator": "==",
-        "value": [
-          "mouth",
-          "nose"
-        ],
-        "parent_symptom": "HIVES"
-      }
+      { "type": "symptom", "symptom": ["VOMITING"] },
+      { "type": "symptom", "symptom": ["DIARRHEA"] },
+      { "type": "symptom", "symptom": ["CHANGE_IN_DIET"] },
+      { "type": "symptom", "symptom": ["LETHARGIC"] }
     ]
   },
   {
-    "id": 50,
-    "rule_code": "E-50",
-    "priority": "Emergency",
-    "rationale": "Vomiting and unable to hold down food or water",
+    "id": 132,
+    "rule_code": "U-132",
+    "priority": "Urgent",
+    "rationale": "Dietary indiscretion, Infectious, Parasites, Toxin",
     "conditions": [
-      {
-        "type": "symptom",
-        "symptom": "VOMITING"
-      },
-      {
-        "type": "slot",
-        "slot": "CANNOT_HOLD_DOWN",
-        "operator": "==",
-        "value": [
-          "food",
-          "water"
-        ],
-        "parent_symptom": "VOMITING"
-      }
+      { "type": "symptom", "symptom": ["VOMITING"] },
+      { "type": "symptom", "symptom": ["DIARRHEA"] },
+      { "type": "attribute", "attribute": "AGE", "operator": "<", "value": ["1 year"] }
     ]
-  },
-  {
-    "id": 51,
-    "rule_code": "E-51",
-    "priority": "Emergency",
-    "rationale": "Frequent vomiting with blue tongue indicating severe distress",
-    "conditions": [
-      {
-        "type": "symptom",
-        "symptom": "VOMITING"
-      },
-      {
-        "type": "slot",
-        "slot": "FREQUENCY",
-        "operator": "==",
-        "value": [
-          "every hour",
-          "hourly"
-        ],
-        "parent_symptom": "VOMITING"
-      },
-      {
-        "type": "symptom",
-        "symptom": "BLUE_TONGUE"
-      }
-    ]
-  },
-  {
-    "id": 60,
-    "rule_code": "N-60",
-    "priority": "Non-Emergency",
-    "rationale": "Swollen eyelids with no history of insect sting, no progression of swelling, and no hives on the body",
-    "conditions": [
-      {
-        "type": "symptom",
-        "symptom": "SWOLLEN_EYELIDS"
-      },
-      {
-        "type": "slot",
-        "slot": "HISTORY_OF_INSECT_STING",
-        "operator": "==",
-        "value": [
-          "no"
-        ],
-        "parent_symptom": "SWOLLEN_EYELIDS"
-      },
-      {
-        "type": "slot",
-        "slot": "PROGRESSION_OF_SWELLING",
-        "operator": "==",
-        "value": [
-          "no"
-        ],
-        "parent_symptom": "SWOLLEN_EYELIDS"
-      },
-      {
-        "type": "slot",
-        "slot": "HIVES_ON_BODY",
-        "operator": "==",
-        "value": [
-          "no"
-        ],
-        "parent_symptom": "SWOLLEN_EYELIDS"
-      }
-    ]
-  },
-  {
-    "id": 101,
-    "rule_code": "E-101",
-    "priority": "Emergency",
-    "rationale": "Productive cough with foamy, green, and yellow discharge",
-    "conditions": [
-      {
-        "type": "symptom",
-        "symptom": "COUGHING"
-      },
-      {
-        "type": "slot",
-        "slot": "COUGH_TYPE",
-        "operator": "==",
-        "value": [
-          "productive"
-        ],
-        "parent_symptom": "COUGHING"
-      },
-      {
-        "type": "slot",
-        "slot": "DISCHARGE_QUALITY",
-        "operator": "==",
-        "value": [
-          "foamy",
-          "green",
-          "yellow"
-        ],
-        "parent_symptom": "COUGHING"
-      }
-    ]
-  },
-  {
-    "id": 62,
-    "rule_code": "N-62",
-    "priority": "Non-Emergency",
-    "rationale": "Frequent sneezing (more than a few times in a day) with congestion or nasal discharge",
-    "conditions": [
-      {
-        "type": "symptom",
-        "symptom": "SNEEZING"
-      },
-      {
-        "type": "slot",
-        "slot": "FREQUENCY",
-        "operator": "==",
-        "value": [
-          "more than a few times",
-          "frequent",
-          "multiple times"
-        ],
-        "parent_symptom": "SNEEZING"
-      },
-      {
-        "type": "symptom",
-        "symptom": "CONGESTION",
-        "optional": true
-      },
-      {
-        "type": "symptom",
-        "symptom": "NASAL_DISCHARGE",
-        "optional": true
-      }
-    ],
-    "logic": "AND SNEEZING + FREQUENCY AND (CONGESTION OR NASAL_DISCHARGE)"
   }
 ]

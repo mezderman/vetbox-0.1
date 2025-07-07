@@ -1,0 +1,82 @@
+[
+  {
+    "id": 50,
+    "rule_code": "E-50",
+    "priority": "Emergency",
+    "rationale": "Vomiting and unable to hold down food or water",
+    "conditions": [
+      {
+        "type": "symptom",
+        "symptom": ["VOMITING"]
+      },
+      {
+        "type": "slot",
+        "slot": "CANNOT_HOLD_DOWN",
+        "operator": "==",
+        "value": [
+          "food",
+          "water"
+        ],
+        "parent_symptom": "VOMITING"
+      }
+    ]
+  },
+  {
+    "id": 51,
+    "rule_code": "E-51",
+    "priority": "Emergency",
+    "rationale": "Frequent vomiting with blue tongue indicating severe distress",
+    "conditions": [
+      {
+        "type": "symptom",
+        "symptom": ["VOMITING"]
+      },
+      {
+        "type": "slot",
+        "slot": "FREQUENCY",
+        "operator": "==",
+        "value": [
+          "every hour",
+          "hourly"
+        ],
+        "parent_symptom": "VOMITING"
+      },
+      {
+        "type": "symptom",
+        "symptom": ["BLUE_TONGUE"]
+      }
+    ]
+  },
+  {
+    "id": 101,
+    "rule_code": "E-101",
+    "priority": "Emergency",
+    "rationale": "Productive cough with foamy, green, and yellow discharge",
+    "conditions": [
+      {
+        "type": "symptom",
+        "symptom": ["COUGHING", "VOMITING"]
+      },
+      {
+        "type": "slot",
+        "slot": "COUGH_TYPE",
+        "operator": "==",
+        "value": [
+          "productive"
+        ],
+        "parent_symptom": "COUGHING"
+      },
+      {
+        "type": "slot",
+        "slot": "DISCHARGE_QUALITY",
+        "operator": "==",
+        "value": [
+          "foamy",
+          "green",
+          "yellow"
+        ],
+        "parent_symptom": "COUGHING"
+      }
+    ]
+  }
+]

@@ -47,10 +47,29 @@ class RuleEngine:
     def serialize_condition(condition) -> Dict[str, Any]:
 
         if condition.condition_type == "symptom":
-            return {
-                "type": "symptom",
-                "symptom": condition.symptom.code if condition.symptom else None
-            }
+            # Check if this uses the new OR logic (symptom_ids array)
+            if condition.symptom_ids and len(condition.symptom_ids) > 0:
+                # Load symptom codes from the database for the IDs
+                from vetbox.db.database import SessionLocal
+                from vetbox.db.models import Symptom
+                
+                session = SessionLocal()
+                try:
+                    symptoms = session.query(Symptom).filter(Symptom.id.in_(condition.symptom_ids)).all()
+                    symptom_codes = [s.code for s in symptoms]
+                    return {
+                        "type": "symptom",
+                        "symptom": symptom_codes,  # Array for OR logic
+                        "logic_type": condition.logic_type or "OR"
+                    }
+                finally:
+                    session.close()
+            else:
+                # Legacy single symptom
+                return {
+                    "type": "symptom",
+                    "symptom": [condition.symptom.code] if condition.symptom else None  # Convert to array for consistency
+                }
         elif condition.condition_type == "slot":
             # Parse value as JSON if possible
             try:
@@ -117,37 +136,98 @@ class RuleEngine:
             session.close()
     
     def find_candidate_rules(self, case_data: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Find rules where at least one required symptom is present in the case data."""
+        """Find rules where some symptoms match and no conditions are explicitly violated."""
         candidates = []
-        # Convert case_data keys to lowercase for case-insensitive matching
-        case_data_lower = {k.lower(): v for k, v in case_data.items()}
-        
-        print("[DEBUG] Case data (lowercase):", case_data_lower)
         
         for rule in self.rules:
-            # Get all symptom conditions from the rule
-            symptom_conditions = [
-                cond for cond in rule.get('conditions', [])
-                if cond.get('type') == 'symptom'
-            ]
-            
-            print(f"[DEBUG] Checking rule {rule.get('rule_code')} with conditions:", 
-                  [cond.get('symptom') for cond in symptom_conditions])
-            
-            # Check if any required symptom is present
-            for condition in symptom_conditions:
-                symptom_name = condition.get('symptom')
-                if symptom_name:  # Add null check
-                    symptom_name_lower = symptom_name.lower()
-                    print(f"[DEBUG] Checking symptom: {symptom_name_lower}")
-                    if symptom_name_lower in case_data_lower:
-                        symptom_data = case_data_lower[symptom_name_lower]
-                        if symptom_data.get('present') is True:
-                            print(f"[DEBUG] Found matching rule: {rule.get('rule_code')}")
-                            candidates.append(rule)
-                            break
+            # Skip rule if any condition is explicitly violated
+            if self._rule_has_violated_conditions(rule, case_data):
+                continue
+                
+            # Include rule if it has any matching symptoms
+            if self._rule_has_matching_symptoms(rule, case_data):
+                candidates.append(rule)
         
         return candidates
+    
+    def _rule_has_violated_conditions(self, rule: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Check if rule has any conditions that are explicitly violated by case data."""
+        for condition in rule.get('conditions', []):
+            if self._is_condition_violated(condition, case_data):
+                return True
+        return False
+    
+    def _is_condition_violated(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Check if a specific condition is violated (explicitly false or doesn't match)."""
+        condition_type = condition.get('type')
+        
+        if condition_type == 'symptom':
+            return self._is_symptom_condition_violated(condition, case_data)
+        elif condition_type == 'attribute':
+            return self._is_attribute_condition_violated(condition, case_data)
+        
+        return False
+    
+    def _is_symptom_condition_violated(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Check if symptom condition is explicitly violated."""
+        symptom_names = condition.get('symptom', [])
+        if not isinstance(symptom_names, list):
+            symptom_names = [symptom_names]
+        
+        case_data_lower = {k.lower(): v for k, v in case_data.items()}
+        
+        for symptom_name in symptom_names:
+            if symptom_name:
+                symptom_data = case_data_lower.get(symptom_name.lower(), {})
+                if symptom_data.get('present') is False:
+                    return True
+        return False
+    
+    def _is_attribute_condition_violated(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Check if attribute condition is violated (we have the attribute but it doesn't match)."""
+        attribute_name = condition.get('attribute')
+        operator = condition.get('operator')
+        expected_value = condition.get('value')
+        
+        # Get actual attribute value (case insensitive)
+        patient_data = case_data.get('patient', {})
+        actual_value = None
+        for key, value in patient_data.items():
+            if key.upper() == attribute_name.upper():
+                actual_value = value
+                break
+        
+        # Only check violation if we have the attribute value
+        if actual_value is None:
+            return False
+        
+        # Special handling for age comparisons
+        if attribute_name.upper() == 'AGE':
+            actual_age = self._normalize_age_value(actual_value)
+            expected_age = self._normalize_age_value(expected_value)
+            
+            if operator == '<' and actual_age >= expected_age:
+                return True
+            elif operator == '>' and actual_age <= expected_age:
+                return True
+            elif operator == '==' and actual_age != expected_age:
+                return True
+        
+        return False
+    
+    def _rule_has_matching_symptoms(self, rule: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Check if rule has any symptoms that match the case data."""
+        symptom_conditions = [
+            cond for cond in rule.get('conditions', [])
+            if cond.get('type') == 'symptom'
+        ]
+        
+        for condition in symptom_conditions:
+            symptom_names = condition.get('symptom')
+            if symptom_names and self._is_symptom_present(symptom_names, case_data):
+                return True
+        
+        return False
     
     def get_missing_conditions(self, rule: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
 
@@ -166,19 +246,17 @@ class RuleEngine:
         return missing
     
     def find_best_matching_rule(self, case_data: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-
+        """Find the highest priority rule where all conditions are satisfied."""
         # Rules are already sorted by priority
         for rule in self.rules:
-            # Check if all required symptoms are present
-            symptoms_satisfied = True
+            # Check if all conditions are satisfied
+            all_conditions_satisfied = True
             for condition in rule.get('conditions', []):
-                if condition.get('type') == 'symptom':
-                    symptom_name = condition.get('symptom')
-                    if not self._is_symptom_present(symptom_name, case_data):
-                        symptoms_satisfied = False
-                        break
+                if not self._is_condition_satisfied(condition, case_data):
+                    all_conditions_satisfied = False
+                    break
             
-            if symptoms_satisfied:
+            if all_conditions_satisfied:
                 return rule
         
         return None
@@ -196,8 +274,30 @@ class RuleEngine:
             return symptom_conditions[0]
         return missing[0] if missing else None
     
-    def _is_condition_satisfied(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+    def _normalize_age_value(self, value: Any) -> float:
+        """
+        Normalize age values to a common format (numeric years).
+        Handles both numeric values and strings with units.
+        """
+        if isinstance(value, (int, float)):
+            return float(value)
+        
+        # Handle string values like "1 year" or "1 years"
+        try:
+            if isinstance(value, str):
+                # Extract numeric part
+                numeric_part = float(''.join(c for c in value if c.isdigit() or c == '.'))
+                # For now we assume all ages in rules are in years
+                return numeric_part
+            elif isinstance(value, list):
+                # If it's a list (like from rules.json), take first value
+                return self._normalize_age_value(value[0])
+        except (ValueError, IndexError):
+            print(f"[DEBUG] Failed to normalize age value: {value}")
+            return 0
+        return 0
 
+    def _is_condition_satisfied(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
         condition_type = condition.get('type')
         
         if condition_type == 'symptom':
@@ -243,37 +343,72 @@ class RuleEngine:
             operator = condition.get('operator')
             expected_value = condition.get('value')
             
-            # Get patient/case attributes (assume they're stored at top level of case_data)
-            # case_data structure: {"symptoms": {...}, "patient": {"sex": "male", "age": 5}}
+            # Get patient/case attributes
             patient_data = case_data.get('patient', {})
-            actual_value = patient_data.get(attribute_name)
+            # Handle case insensitive attribute lookup
+            actual_value = None
+            for key, value in patient_data.items():
+                if key.upper() == attribute_name.upper():
+                    actual_value = value
+                    break
             
             if actual_value is None:
                 return False
                 
             print(f"[DEBUG] Checking attribute condition: {attribute_name} = '{actual_value}' against expected '{expected_value}' with operator '{operator}'")
             
-            # Handle different operators (sync version - only exact matching)
-            if operator == '==' or operator == 'equals':
-                return self._exact_match_condition(actual_value, expected_value)
-            elif operator == 'contains':
-                return expected_value in actual_value
-            elif operator == 'greater_than':
-                return float(actual_value) > float(expected_value)
-            elif operator == 'less_than':
-                return float(actual_value) < float(expected_value)
+            # Special handling for age comparisons
+            if attribute_name.upper() == 'AGE':
+                actual_age = self._normalize_age_value(actual_value)
+                expected_age = self._normalize_age_value(expected_value)
+                
+                print(f"[DEBUG] Comparing ages: {actual_age} {operator} {expected_age}")
+                
+                if operator == '==' or operator == 'equals':
+                    return actual_age == expected_age
+                elif operator == 'contains':
+                    return str(expected_age) in str(actual_age)
+                elif operator == 'greater_than' or operator == '>':
+                    return actual_age > expected_age
+                elif operator == 'less_than' or operator == '<':
+                    return actual_age < expected_age
+            else:
+                # Handle non-age attributes
+                if operator == '==' or operator == 'equals':
+                    return self._exact_match_condition(actual_value, expected_value)
+                elif operator == 'contains':
+                    return expected_value in actual_value
+                elif operator == 'greater_than':
+                    return float(actual_value) > float(expected_value)
+                elif operator == 'less_than':
+                    return float(actual_value) < float(expected_value)
             
         return False
     
-    def _is_symptom_present(self, symptom_name: str, case_data: Dict[str, Dict[str, Any]]) -> bool:
-        """Check if a symptom is present in the case data (case-insensitive)."""
+    def _is_symptom_present(self, symptom_names, case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Check if any symptom in the array is present in the case data (case-insensitive)."""
+        if not symptom_names:  # Add null check
+            return False
+            
+        # Always expect an array of symptoms (OR logic)
+        if not isinstance(symptom_names, list):
+            # Handle legacy single symptom strings by converting to array
+            symptom_names = [symptom_names]
+            
+        print(f"[DEBUG] Checking symptoms: {symptom_names}")
+        return any(self._is_single_symptom_present(s, case_data) for s in symptom_names)
+
+    def _is_single_symptom_present(self, symptom_name: str, case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Check if a single symptom is present in the case data (case-insensitive)."""
         if not symptom_name:  # Add null check
             return False
         # Convert both the symptom name and case data keys to lowercase
         symptom_name_lower = symptom_name.lower()
         case_data_lower = {k.lower(): v for k, v in case_data.items()}
         symptom_data = case_data_lower.get(symptom_name_lower, {})
-        return symptom_data.get('present', False) is True
+        is_present = symptom_data.get('present', False) is True
+        print(f"[DEBUG] Single symptom '{symptom_name}' present: {is_present}")
+        return is_present
 
     async def _semantic_validate_condition(self, actual_value: str, expected_values: List[str]) -> bool:
         """
@@ -356,37 +491,57 @@ class RuleEngine:
             operator = condition.get('operator')
             expected_value = condition.get('value')
             
-            # Get patient/case attributes (assume they're stored at top level of case_data)
-            # case_data structure: {"symptoms": {...}, "patient": {"sex": "male", "age": 5}}
+            # Get patient/case attributes
             patient_data = case_data.get('patient', {})
-            actual_value = patient_data.get(attribute_name)
+            # Handle case insensitive attribute lookup
+            actual_value = None
+            for key, value in patient_data.items():
+                if key.upper() == attribute_name.upper():
+                    actual_value = value
+                    break
             
             if actual_value is None:
                 return False
                 
             print(f"[DEBUG] Checking attribute condition: {attribute_name} = '{actual_value}' against expected '{expected_value}' with operator '{operator}'")
             
-            # Handle different operators with semantic validation
-            if operator == '==' or operator == 'equals':
-                # First try exact matching
-                if self._exact_match_condition(actual_value, expected_value):
-                    print(f"[DEBUG] Exact match successful")
-                    return True
+            # Special handling for age comparisons
+            if attribute_name.upper() == 'AGE':
+                actual_age = self._normalize_age_value(actual_value)
+                expected_age = self._normalize_age_value(expected_value)
                 
-                # If exact match fails and we have a list of expected values, try semantic validation
-                if isinstance(expected_value, list):
-                    print(f"[DEBUG] Exact match failed, trying semantic validation...")
-                    is_semantic_match = await self._semantic_validate_condition(str(actual_value), [str(v) for v in expected_value])
-                    print(f"[DEBUG] Semantic validation result: {is_semantic_match}")
-                    return is_semantic_match
+                print(f"[DEBUG] Comparing ages: {actual_age} {operator} {expected_age}")
                 
-                return False
-                
-            elif operator == 'contains':
-                return expected_value in actual_value
-            elif operator == 'greater_than':
-                return float(actual_value) > float(expected_value)
-            elif operator == 'less_than':
-                return float(actual_value) < float(expected_value)
+                if operator == '==' or operator == 'equals':
+                    return actual_age == expected_age
+                elif operator == 'contains':
+                    return str(expected_age) in str(actual_age)
+                elif operator == 'greater_than' or operator == '>':
+                    return actual_age > expected_age
+                elif operator == 'less_than' or operator == '<':
+                    return actual_age < expected_age
+            else:
+                # Handle non-age attributes with semantic validation
+                if operator == '==' or operator == 'equals':
+                    # First try exact matching
+                    if self._exact_match_condition(actual_value, expected_value):
+                        print(f"[DEBUG] Exact match successful")
+                        return True
+                    
+                    # If exact match fails and we have a list of expected values, try semantic validation
+                    if isinstance(expected_value, list):
+                        print(f"[DEBUG] Exact match failed, trying semantic validation...")
+                        is_semantic_match = await self._semantic_validate_condition(str(actual_value), [str(v) for v in expected_value])
+                        print(f"[DEBUG] Semantic validation result: {is_semantic_match}")
+                        return is_semantic_match
+                    
+                    return False
+                    
+                elif operator == 'contains':
+                    return expected_value in actual_value
+                elif operator == 'greater_than':
+                    return float(actual_value) > float(expected_value)
+                elif operator == 'less_than':
+                    return float(actual_value) < float(expected_value)
              
         return False

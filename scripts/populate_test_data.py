@@ -1,6 +1,12 @@
 import json
+import sys
+import os
 from pathlib import Path
 from sqlalchemy.orm import Session
+
+# Add the src directory to the Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
 from vetbox.db.database import SessionLocal, Base, engine
 from vetbox.db.models import Rule, RuleCondition, Symptom, SlotName, PatientAttribute
 
@@ -79,12 +85,28 @@ def main():
             # Add conditions
             for cond in rule_data["conditions"]:
                 if cond["type"] == "symptom":
-                    symptom = get_or_create_symptom(session, cond["symptom"])
+                    # Handle symptom arrays using new OR logic
+                    symptom_list = cond["symptom"]
+                    if not isinstance(symptom_list, list):
+                        # Handle legacy single symptom strings
+                        symptom_list = [symptom_list]
+                    
+                    # Create all symptom records first
+                    symptom_ids = []
+                    for symptom_code in symptom_list:
+                        symptom = get_or_create_symptom(session, symptom_code)
+                        symptom_ids.append(symptom.id)
+                    
+                    # Create one condition with symptom_ids array for OR logic
+                    logic_type = "OR" if len(symptom_ids) > 1 else "AND"
                     condition = RuleCondition(
                         rule_id=rule.id,
                         condition_type="symptom",
-                        symptom_id=symptom.id
+                        symptom_ids=symptom_ids,
+                        logic_type=logic_type
                     )
+                    session.add(condition)
+                        
                 elif cond["type"] == "slot":
                     slot = get_or_create_slot(session, cond["slot"])
                     parent_symptom = get_or_create_symptom(session, cond["parent_symptom"])
@@ -102,6 +124,8 @@ def main():
                         operator=cond.get("operator"),
                         value=value_str
                     )
+                    session.add(condition)
+                    
                 elif cond["type"] == "attribute":
                     attribute = get_or_create_patient_attribute(session, cond["attribute"])
                     value = cond.get("value")
@@ -117,10 +141,9 @@ def main():
                         operator=cond.get("operator"),
                         value=value_str
                     )
+                    session.add(condition)
                 else:
                     continue  # Unknown type, skip
-
-                session.add(condition)
 
         session.commit()
         print("All rules and conditions inserted successfully.")

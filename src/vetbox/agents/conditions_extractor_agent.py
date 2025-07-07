@@ -32,14 +32,14 @@ For any slots (modifiers or attributes), include them as keys within the symptom
 Example: "hives": {"present": true, "location": ["neck"]}
 
 **PATIENT ATTRIBUTES:**
-Extract patient information into a "patient" object. Common attributes include:
+Extract patient attributes into a "attributes" object. Common attributes include:
 - sex: "male", "female" 
 - age: numeric value (in years)
 - species: "dog", "cat", "bird", etc.
 - breed: "labrador", "siamese", etc.
 - weight: numeric value (in lbs or kg)
 
-Example: "patient": {"sex": "male", "age": 5, "species": "dog"}
+Example: "attributes": {"sex": "male", "age": 5, "species": "dog"}
 
 **IMPORTANT: Context-aware extraction for follow-up questions:**
 
@@ -50,6 +50,12 @@ The context will include:
 - "type": "slot" for slot questions, "symptom" for symptom questions
 
 For slot questions, ALWAYS associate the answer with the parent_symptom specified in the context.
+
+**HANDLING YES/NO RESPONSES:**
+When answering follow-up questions, "yes" means the user CONFIRMS the specific condition being asked about, and "no" means they DENY it.
+- If the question asks about a positive condition (e.g., "Can your pet keep food down?") and answer is "yes" → the positive condition is true
+- If the question asks about a negative condition (e.g., "Is your pet unable to hold food down?") and answer is "yes" → the negative condition is true
+- Always extract based on what the user is confirming or denying in their response
 
 Example:
 Context: {"type": "slot", "slot": "frequency", "parent_symptom": "sneezing"}
@@ -88,7 +94,7 @@ Example outputs:
   "vomiting": { "present": true, "frequency": "2_per_day" },
   "hives": { "present": false },
   "coughing": { "present": true },
-  "patient": { "sex": "male", "age": 3 }
+  "attributes": { "sex": "male", "age": 3 }
 }
 
 {
@@ -96,7 +102,7 @@ Example outputs:
 }
 
 {
-  "patient": { "sex": "female", "species": "cat", "age": 7 }
+  "attributes": { "sex": "female", "species": "cat", "age": 7 }
 }
             """
         )

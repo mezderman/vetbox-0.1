@@ -81,9 +81,12 @@ class CaseData:
         Convert the case data to a dictionary.
         
         Returns:
-            A dictionary representation of the case data
+            A dictionary representation of the case data including symptoms and patient data
         """
-        return dict(self.data)
+        return {
+            **self.data,  # All symptom data
+            "patient": self.patient  # Patient attributes
+        }
     
     def merge_extraction(self, extracted: Dict[str, Any]) -> None:
         """
@@ -96,6 +99,14 @@ class CaseData:
             extracted: A dictionary of extracted symptom data to merge.
                       Can be in format {"symptom": true/false} or {"symptom": {"present": true/false, ...}}
         """
+        # Handle special "attributes" object that contains patient data
+        if "attributes" in extracted:
+            for attr_name, attr_value in extracted["attributes"].items():
+                self.patient[attr_name] = attr_value
+            # Remove attributes from extracted to avoid processing as symptom
+            del extracted["attributes"]
+            
+        # Process remaining items as symptoms
         for symptom, value in extracted.items():
             if isinstance(value, bool):
                 # Convert simple boolean to proper symptom format

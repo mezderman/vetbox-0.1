@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey, ARRAY
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -45,7 +45,15 @@ class RuleCondition(Base):
     id = Column(Integer, primary_key=True)
     rule_id = Column(Integer, ForeignKey("rules.id", ondelete="CASCADE"), nullable=False)
     condition_type = Column(String(16), nullable=False)  # 'symptom', 'slot', or 'attribute'
+    
+    # Single symptom (legacy and for non-OR conditions)
     symptom_id = Column(Integer, ForeignKey("symptoms.id"))
+    
+    # Multiple symptoms for OR logic
+    symptom_ids = Column(ARRAY(Integer))  # For OR groups like [15, 16] for CONGESTION OR NASAL_DISCHARGE
+    logic_type = Column(String(8), default='AND')  # 'AND' or 'OR'
+    
+    # Slot and attribute fields
     slot_name_id = Column(Integer, ForeignKey("slot_names.id"))
     attribute_id = Column(Integer, ForeignKey("patient_attributes.id"))
     operator = Column(String(8))
