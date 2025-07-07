@@ -14,8 +14,16 @@ class RuleEngine:
     def __init__(self, rules: List[Dict[str, Any]]):
         """Initialize the rule engine with a list of rules."""
         self.rules = rules
-        # Sort rules by priority (assuming higher priority number = more urgent)
-        self.rules.sort(key=lambda x: x.get('priority', 0), reverse=True)
+        # Priority mapping from string values to numeric levels
+        self.priority_map = {
+            "Emergency": 4,
+            "Urgent": 3,
+            "Sick": 2,
+            "Routine": 1,
+            "": 0  # Default priority
+        }
+        # Sort rules by priority using the priority map
+        self.rules.sort(key=lambda x: self.priority_map.get(x.get('priority', ''), 0), reverse=True)
         
         # Initialize semantic validator agent
         self.semantic_validator = Agent(
@@ -154,6 +162,7 @@ class RuleEngine:
         """Check if rule has any conditions that are explicitly violated by case data."""
         for condition in rule.get('conditions', []):
             if self._is_condition_violated(condition, case_data):
+                print(f"[DEBUG] Rule {rule.get('rule_code')} violated by condition: {condition}")
                 return True
         return False
     
@@ -198,20 +207,28 @@ class RuleEngine:
                 break
         
         # Only check violation if we have the attribute value
-        if actual_value is None:
-            return False
-        
-        # Special handling for age comparisons
-        if attribute_name.upper() == 'AGE':
-            actual_age = self._normalize_age_value(actual_value)
-            expected_age = self._normalize_age_value(expected_value)
+        if actual_value is not None:
+            print(f"[DEBUG] Checking attribute violation: {attribute_name} = '{actual_value}' against expected '{expected_value}' with operator '{operator}'")
             
-            if operator == '<' and actual_age >= expected_age:
-                return True
-            elif operator == '>' and actual_age <= expected_age:
-                return True
-            elif operator == '==' and actual_age != expected_age:
-                return True
+            # For species check, if we have a specific species requirement and it doesn't match, that's a violation
+            if attribute_name.upper() == 'SPECIES':
+                if isinstance(expected_value, list):
+                    expected_species = [s.lower() for s in expected_value]
+                    return actual_value.lower() not in expected_species
+                else:
+                    return actual_value.lower() != expected_value.lower()
+            
+            # Handle other attributes...
+            if operator == '==' or operator == 'equals':
+                if isinstance(expected_value, list):
+                    return actual_value not in expected_value
+                return actual_value != expected_value
+            elif operator == 'contains':
+                return expected_value not in actual_value
+            elif operator == 'greater_than' or operator == '>':
+                return float(actual_value) <= float(expected_value)
+            elif operator == 'less_than' or operator == '<':
+                return float(actual_value) >= float(expected_value)
         
         return False
     
