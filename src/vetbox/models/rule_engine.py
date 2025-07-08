@@ -210,25 +210,38 @@ class RuleEngine:
         if actual_value is not None:
             print(f"[DEBUG] Checking attribute violation: {attribute_name} = '{actual_value}' against expected '{expected_value}' with operator '{operator}'")
             
-            # For species check, if we have a specific species requirement and it doesn't match, that's a violation
-            if attribute_name.upper() == 'SPECIES':
+            # Handle the new format where actual_value might be a dict with "not" field
+            if isinstance(actual_value, dict) and "not" in actual_value:
+                # If we're expecting a value that's in the "not" list, that's a violation
+                not_values = [str(v).lower() for v in actual_value["not"]]
                 if isinstance(expected_value, list):
-                    expected_species = [s.lower() for s in expected_value]
-                    return actual_value.lower() not in expected_species
+                    expected_values = [str(v).lower() for v in expected_value]
+                    # If any expected value is in the "not" list, that's a violation
+                    return any(ev in not_values for ev in expected_values)
                 else:
-                    return actual_value.lower() != expected_value.lower()
+                    return str(expected_value).lower() in not_values
             
-            # Handle other attributes...
-            if operator == '==' or operator == 'equals':
-                if isinstance(expected_value, list):
-                    return actual_value not in expected_value
-                return actual_value != expected_value
-            elif operator == 'contains':
-                return expected_value not in actual_value
-            elif operator == 'greater_than' or operator == '>':
-                return float(actual_value) <= float(expected_value)
-            elif operator == 'less_than' or operator == '<':
-                return float(actual_value) >= float(expected_value)
+            # For regular string values, proceed with normal comparison
+            if isinstance(actual_value, str):
+                # For species check, if we have a specific species requirement and it doesn't match, that's a violation
+                if attribute_name.upper() == 'SPECIES':
+                    if isinstance(expected_value, list):
+                        expected_species = [s.lower() for s in expected_value]
+                        return actual_value.lower() not in expected_species
+                    else:
+                        return actual_value.lower() != expected_value.lower()
+                
+                # Handle other attributes...
+                if operator == '==' or operator == 'equals':
+                    if isinstance(expected_value, list):
+                        return actual_value not in expected_value
+                    return actual_value != expected_value
+                elif operator == 'contains':
+                    return expected_value not in actual_value
+                elif operator == 'greater_than' or operator == '>':
+                    return float(actual_value) <= float(expected_value)
+                elif operator == 'less_than' or operator == '<':
+                    return float(actual_value) >= float(expected_value)
         
         return False
     
@@ -317,7 +330,74 @@ class RuleEngine:
             return 0
         return 0
 
+    def _compare_values(self, actual_value: Any, expected_value: Any, operator: str, context: str = "") -> bool:
+        """Common logic for comparing values with different operators."""
+        if actual_value is None:
+            return False
+            
+        print(f"[DEBUG] Comparing values for {context}: '{actual_value}' {operator} '{expected_value}'")
+        
+        # Handle yes/no answers for IN operator
+        if operator == 'IN':
+            # Clean up expected values - remove any "string" placeholder
+            if isinstance(expected_value, list):
+                expected_value = [v for v in expected_value if v != "string"]
+            
+            # For yes/no answers
+            if str(actual_value).lower() == 'yes':
+                print(f"[DEBUG] User confirmed {context}, marking IN condition as satisfied")
+                return True
+            elif str(actual_value).lower() == 'no':
+                print(f"[DEBUG] User denied {context}, marking IN condition as not satisfied")
+                return False
+            else:
+                # For specific answers, check if the actual value is in the expected list
+                return any(str(actual_value).lower() == str(exp_val).lower() for exp_val in expected_value)
+        
+        # Handle numeric comparisons
+        elif operator in ['greater_than', '>', 'less_than', '<']:
+            try:
+                actual_num = float(actual_value)
+                expected_num = float(expected_value[0] if isinstance(expected_value, list) else expected_value)
+                if operator in ['greater_than', '>']:
+                    return actual_num > expected_num
+                else:
+                    return actual_num < expected_num
+            except (ValueError, TypeError):
+                print(f"[DEBUG] Failed to compare numeric values: {actual_value} {operator} {expected_value}")
+                return False
+        
+        # Handle equality
+        elif operator in ['==', 'equals']:
+            if isinstance(expected_value, list):
+                return actual_value in expected_value
+            return actual_value == expected_value
+            
+        # Handle contains
+        elif operator == 'contains':
+            return str(expected_value) in str(actual_value)
+            
+        return False
+
+    def _get_slot_value(self, slot_name: str, parent_symptom: str, case_data: Dict[str, Dict[str, Any]]) -> Optional[Any]:
+        """Extract slot value from case data."""
+        case_data_lower = {k.lower(): v for k, v in case_data.items()}
+        parent_symptom_lower = parent_symptom.lower() if parent_symptom else ""
+        slot_name_upper = slot_name.upper() if slot_name else ""
+        
+        symptom_data = case_data_lower.get(parent_symptom_lower, {})
+        return symptom_data.get(slot_name_upper)
+
+    def _get_attribute_value(self, attribute_name: str, case_data: Dict[str, Dict[str, Any]]) -> Optional[Any]:
+        """Extract attribute value from case data."""
+        patient_data = case_data.get('patient', {})
+        for key, value in patient_data.items():
+            if key.upper() == attribute_name.upper():
+                return value
+        return None
+
     def _is_condition_satisfied(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Check if a condition is satisfied by the case data."""
         condition_type = condition.get('type')
         
         if condition_type == 'symptom':
@@ -327,81 +407,36 @@ class RuleEngine:
         elif condition_type == 'slot':
             parent_symptom = condition.get('parent_symptom')
             slot_name = condition.get('slot')
-            operator = condition.get('operator')
-            expected_value = condition.get('value')
             
             # First check if parent symptom exists and is present
             if not self._is_symptom_present(parent_symptom, case_data):
                 return False
                 
-            # Then check if slot exists and matches
-            # Rules use UPPERCASE for symptoms/slots, case data uses lowercase symptoms + UPPERCASE slots
-            case_data_lower = {k.lower(): v for k, v in case_data.items()}
-            parent_symptom_lower = parent_symptom.lower() if parent_symptom else ""
-            slot_name_upper = slot_name.upper() if slot_name else ""
-            
-            symptom_data = case_data_lower.get(parent_symptom_lower, {})
-            actual_value = symptom_data.get(slot_name_upper)
-            
-            if actual_value is None:
-                return False
-                
-            print(f"[DEBUG] Checking slot condition: {slot_name} = '{actual_value}' against expected '{expected_value}' with operator '{operator}'")
-                
-            # Handle different operators (sync version - only exact matching)
-            if operator == '==' or operator == 'equals':
-                return self._exact_match_condition(actual_value, expected_value)
-            elif operator == 'contains':
-                return expected_value in actual_value
-            elif operator == 'greater_than':
-                return float(actual_value) > float(expected_value)
-            elif operator == 'less_than':
-                return float(actual_value) < float(expected_value)
+            actual_value = self._get_slot_value(slot_name, parent_symptom, case_data)
+            return self._compare_values(
+                actual_value,
+                condition.get('value'),
+                condition.get('operator'),
+                f"slot {slot_name}"
+            )
                 
         elif condition_type == 'attribute':
             attribute_name = condition.get('attribute')
-            operator = condition.get('operator')
-            expected_value = condition.get('value')
-            
-            # Get patient/case attributes
-            patient_data = case_data.get('patient', {})
-            # Handle case insensitive attribute lookup
-            actual_value = None
-            for key, value in patient_data.items():
-                if key.upper() == attribute_name.upper():
-                    actual_value = value
-                    break
-            
-            if actual_value is None:
-                return False
-                
-            print(f"[DEBUG] Checking attribute condition: {attribute_name} = '{actual_value}' against expected '{expected_value}' with operator '{operator}'")
+            actual_value = self._get_attribute_value(attribute_name, case_data)
             
             # Special handling for age comparisons
             if attribute_name.upper() == 'AGE':
-                actual_age = self._normalize_age_value(actual_value)
-                expected_age = self._normalize_age_value(expected_value)
-                
-                print(f"[DEBUG] Comparing ages: {actual_age} {operator} {expected_age}")
-                
-                if operator == '==' or operator == 'equals':
-                    return actual_age == expected_age
-                elif operator == 'contains':
-                    return str(expected_age) in str(actual_age)
-                elif operator == 'greater_than' or operator == '>':
-                    return actual_age > expected_age
-                elif operator == 'less_than' or operator == '<':
-                    return actual_age < expected_age
+                actual_value = self._normalize_age_value(actual_value)
+                expected_value = self._normalize_age_value(condition.get('value'))
             else:
-                # Handle non-age attributes
-                if operator == '==' or operator == 'equals':
-                    return self._exact_match_condition(actual_value, expected_value)
-                elif operator == 'contains':
-                    return expected_value in actual_value
-                elif operator == 'greater_than':
-                    return float(actual_value) > float(expected_value)
-                elif operator == 'less_than':
-                    return float(actual_value) < float(expected_value)
+                expected_value = condition.get('value')
+                
+            return self._compare_values(
+                actual_value,
+                expected_value,
+                condition.get('operator'),
+                f"attribute {attribute_name}"
+            )
             
         return False
     
@@ -451,6 +486,28 @@ class RuleEngine:
         else:
             return actual_value == expected_value
 
+    async def _compare_values_async(self, actual_value: Any, expected_value: Any, operator: str, context: str = "") -> bool:
+        """Async version of _compare_values that supports semantic validation."""
+        # First try exact matching
+        if self._compare_values(actual_value, expected_value, operator, context):
+            return True
+            
+        # Skip semantic validation for species attributes
+        if context.startswith("attribute SPECIES"):
+            return False
+            
+        # If exact match fails and we have a list of expected values, try semantic validation
+        if operator in ['==', 'equals', 'IN'] and isinstance(expected_value, list):
+            # Clean up expected values
+            expected_values = [v for v in expected_value if v != "string"]
+            if expected_values:
+                print(f"[DEBUG] Exact match failed for {context}, trying semantic validation...")
+                is_semantic_match = await self._semantic_validate_condition(str(actual_value), [str(v) for v in expected_values])
+                print(f"[DEBUG] Semantic validation result: {is_semantic_match}")
+                return is_semantic_match
+                
+        return False
+
     async def _is_condition_satisfied_async(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
         """Async version of _is_condition_satisfied that supports semantic validation."""
         condition_type = condition.get('type')
@@ -462,106 +519,35 @@ class RuleEngine:
         elif condition_type == 'slot':
             parent_symptom = condition.get('parent_symptom')
             slot_name = condition.get('slot')
-            operator = condition.get('operator')
-            expected_value = condition.get('value')
             
             # First check if parent symptom exists and is present
             if not self._is_symptom_present(parent_symptom, case_data):
                 return False
                 
-            # Then check if slot exists and matches
-            # Rules use UPPERCASE for symptoms/slots, case data uses lowercase symptoms + UPPERCASE slots
-            case_data_lower = {k.lower(): v for k, v in case_data.items()}
-            parent_symptom_lower = parent_symptom.lower() if parent_symptom else ""
-            slot_name_upper = slot_name.upper() if slot_name else ""
-            
-            symptom_data = case_data_lower.get(parent_symptom_lower, {})
-            actual_value = symptom_data.get(slot_name_upper)
-            
-            if actual_value is None:
-                return False
-                
-            print(f"[DEBUG] Checking slot condition: {slot_name} = '{actual_value}' against expected '{expected_value}' with operator '{operator}'")
-                
-            # Handle different operators.
-            if operator == '==' or operator == 'equals':
-                # First try exact matching
-                if self._exact_match_condition(actual_value, expected_value):
-                    print(f"[DEBUG] Exact match successful")
-                    return True
-                
-                # If exact match fails and we have a list of expected values, try semantic validation
-                if isinstance(expected_value, list):
-                    print(f"[DEBUG] Exact match failed, trying semantic validation...")
-                    is_semantic_match = await self._semantic_validate_condition(str(actual_value), [str(v) for v in expected_value])
-                    print(f"[DEBUG] Semantic validation result: {is_semantic_match}")
-                    return is_semantic_match
-                
-                return False
-                
-            elif operator == 'contains':
-                return expected_value in actual_value
-            elif operator == 'greater_than':
-                return float(actual_value) > float(expected_value)
-            elif operator == 'less_than':
-                return float(actual_value) < float(expected_value)
+            actual_value = self._get_slot_value(slot_name, parent_symptom, case_data)
+            return await self._compare_values_async(
+                actual_value,
+                condition.get('value'),
+                condition.get('operator'),
+                f"slot {slot_name}"
+            )
                 
         elif condition_type == 'attribute':
             attribute_name = condition.get('attribute')
-            operator = condition.get('operator')
-            expected_value = condition.get('value')
-            
-            # Get patient/case attributes
-            patient_data = case_data.get('patient', {})
-            # Handle case insensitive attribute lookup
-            actual_value = None
-            for key, value in patient_data.items():
-                if key.upper() == attribute_name.upper():
-                    actual_value = value
-                    break
-            
-            if actual_value is None:
-                return False
-                
-            print(f"[DEBUG] Checking attribute condition: {attribute_name} = '{actual_value}' against expected '{expected_value}' with operator '{operator}'")
+            actual_value = self._get_attribute_value(attribute_name, case_data)
             
             # Special handling for age comparisons
             if attribute_name.upper() == 'AGE':
-                actual_age = self._normalize_age_value(actual_value)
-                expected_age = self._normalize_age_value(expected_value)
-                
-                print(f"[DEBUG] Comparing ages: {actual_age} {operator} {expected_age}")
-                
-                if operator == '==' or operator == 'equals':
-                    return actual_age == expected_age
-                elif operator == 'contains':
-                    return str(expected_age) in str(actual_age)
-                elif operator == 'greater_than' or operator == '>':
-                    return actual_age > expected_age
-                elif operator == 'less_than' or operator == '<':
-                    return actual_age < expected_age
+                actual_value = self._normalize_age_value(actual_value)
+                expected_value = self._normalize_age_value(condition.get('value'))
             else:
-                # Handle non-age attributes with semantic validation
-                if operator == '==' or operator == 'equals':
-                    # First try exact matching
-                    if self._exact_match_condition(actual_value, expected_value):
-                        print(f"[DEBUG] Exact match successful")
-                        return True
-                    
-                    # If exact match fails and we have a list of expected values, try semantic validation
-                    if isinstance(expected_value, list):
-                        print(f"[DEBUG] Exact match failed, trying semantic validation...")
-                        is_semantic_match = await self._semantic_validate_condition(str(actual_value), [str(v) for v in expected_value])
-                        print(f"[DEBUG] Semantic validation result: {is_semantic_match}")
-                        return is_semantic_match
-                    
-                    return False
-                    
-                elif operator == 'contains':
-                    return expected_value in actual_value
-                elif operator == 'greater_than':
-                    return float(actual_value) > float(expected_value)
-                elif operator == 'less_than':
-                    return float(actual_value) < float(expected_value)
-             
+                expected_value = condition.get('value')
+                
+            return await self._compare_values_async(
+                actual_value,
+                expected_value,
+                condition.get('operator'),
+                f"attribute {attribute_name}"
+            )
+            
         return False

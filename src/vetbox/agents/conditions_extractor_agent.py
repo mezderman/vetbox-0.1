@@ -52,10 +52,26 @@ The context will include:
 For slot questions, ALWAYS associate the answer with the parent_symptom specified in the context.
 
 **HANDLING YES/NO RESPONSES:**
-When answering follow-up questions, "yes" means the user CONFIRMS the specific condition being asked about, and "no" means they DENY it.
-- If the question asks about a positive condition (e.g., "Can your pet keep food down?") and answer is "yes" → the positive condition is true
-- If the question asks about a negative condition (e.g., "Is your pet unable to hold food down?") and answer is "yes" → the negative condition is true
-- Always extract based on what the user is confirming or denying in their response
+When answering follow-up questions, carefully consider what the user is confirming or denying:
+
+1. For questions about attributes ("Is your pet a [X]?"):
+   - If answer is "no", do NOT assume any other value
+   - Only extract what the user explicitly states
+   - Example: Q: "Is your pet a cat?" A: "no" → {"attributes": {"species": {"not": ["cat"]}}}
+   - Example: Q: "Is your pet male?" A: "no, she's female" → {"attributes": {"sex": "female"}}
+
+2. For questions about conditions:
+   - If the question asks about a positive condition (e.g., "Can your pet keep food down?"):
+     * "yes" → the positive condition is true
+     * "no" → the positive condition is false
+   - If the question asks about a negative condition (e.g., "Is your pet unable to hold food down?"):
+     * "yes" → the negative condition is true
+     * "no" → the negative condition is false
+
+3. Always extract based on what is explicitly stated or denied
+   - Do not make assumptions about alternative values
+   - Only include information that is directly confirmed or denied
+   - If the user provides additional information, include it
 
 Example:
 Context: {"type": "slot", "slot": "frequency", "parent_symptom": "sneezing"}
