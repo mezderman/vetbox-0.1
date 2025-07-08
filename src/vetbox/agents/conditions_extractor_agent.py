@@ -54,11 +54,17 @@ For slot questions, ALWAYS associate the answer with the parent_symptom specifie
 **HANDLING YES/NO RESPONSES:**
 When answering follow-up questions, carefully consider what the user is confirming or denying:
 
-1. For questions about attributes ("Is your pet a [X]?"):
-   - If answer is "no", do NOT assume any other value
-   - Only extract what the user explicitly states
-   - Example: Q: "Is your pet a cat?" A: "no" → {"attributes": {"species": {"not": ["cat"]}}}
-   - Example: Q: "Is your pet male?" A: "no, she's female" → {"attributes": {"sex": "female"}}
+1. For direct questions about attributes or conditions:
+   - When the question asks "Is X true?" and the answer is:
+     * "yes" → Extract X as true/confirmed
+     * "no" → Extract X as false/denied
+   - When additional information is provided:
+     * Extract both the yes/no response AND any additional details
+   - Examples:
+     * Q: "Is your pet male?" A: "yes" → {"attributes": {"sex": "male"}}
+     * Q: "Is your pet male?" A: "no, she's female" → {"attributes": {"sex": "female"}}
+     * Q: "Is X present?" A: "yes" → {"X": {"present": true}}
+     * Q: "Is X present?" A: "no" → {"X": {"present": false}}
 
 2. For questions about conditions:
    - If the question asks about a positive condition (e.g., "Can your pet keep food down?"):

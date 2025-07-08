@@ -60,7 +60,7 @@ class TriageAgent:
         self.current_question_context = None
 
         # First, try to find a best matching rule (all conditions satisfied)
-        best_rule = self.rule_engine.find_best_matching_rule(current_case)
+        best_rule = await self.rule_engine.find_best_matching_rule(current_case)
         if best_rule:
             print("[Best Matching Rule]", best_rule.get('rule_code'), best_rule.get('rationale'))
             
@@ -88,7 +88,7 @@ class TriageAgent:
         else:
             # No best matching rule found, but check for candidate rules
             print("[No Best Matching Rule] Checking candidate rules...")
-            candidate_rules = self.rule_engine.find_candidate_rules(current_case)
+            candidate_rules = await self.rule_engine.find_candidate_rules(current_case)
             
             if candidate_rules:
                 # Use the highest priority candidate rule for follow-up questions

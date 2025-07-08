@@ -143,13 +143,13 @@ class RuleEngine:
         finally:
             session.close()
     
-    def find_candidate_rules(self, case_data: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+    async def find_candidate_rules(self, case_data: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Find rules where some symptoms match and no conditions are explicitly violated."""
         candidates = []
         
         for rule in self.rules:
             # Skip rule if any condition is explicitly violated
-            if self._rule_has_violated_conditions(rule, case_data):
+            if await self._rule_has_violated_conditions(rule, case_data):
                 continue
                 
             # Include rule if it has any matching symptoms
@@ -158,22 +158,22 @@ class RuleEngine:
         
         return candidates
     
-    def _rule_has_violated_conditions(self, rule: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+    async def _rule_has_violated_conditions(self, rule: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
         """Check if rule has any conditions that are explicitly violated by case data."""
         for condition in rule.get('conditions', []):
-            if self._is_condition_violated(condition, case_data):
+            if await self._is_condition_violated(condition, case_data):
                 print(f"[DEBUG] Rule {rule.get('rule_code')} violated by condition: {condition}")
                 return True
         return False
     
-    def _is_condition_violated(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+    async def _is_condition_violated(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
         """Check if a specific condition is violated (explicitly false or doesn't match)."""
         condition_type = condition.get('type')
         
         if condition_type == 'symptom':
             return self._is_symptom_condition_violated(condition, case_data)
         elif condition_type == 'attribute':
-            return self._is_attribute_condition_violated(condition, case_data)
+            return await self._is_attribute_condition_violated(condition, case_data)
         
         return False
     
@@ -192,7 +192,7 @@ class RuleEngine:
                     return True
         return False
     
-    def _is_attribute_condition_violated(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+    async def _is_attribute_condition_violated(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
         """Check if attribute condition is violated (we have the attribute but it doesn't match)."""
         attribute_name = condition.get('attribute')
         operator = condition.get('operator')
@@ -223,19 +223,23 @@ class RuleEngine:
             
             # For regular string values, proceed with normal comparison
             if isinstance(actual_value, str):
-                # For species check, if we have a specific species requirement and it doesn't match, that's a violation
-                if attribute_name.upper() == 'SPECIES':
-                    if isinstance(expected_value, list):
-                        expected_species = [s.lower() for s in expected_value]
-                        return actual_value.lower() not in expected_species
-                    else:
-                        return actual_value.lower() != expected_value.lower()
-                
-                # Handle other attributes...
+                # First try exact matching
                 if operator == '==' or operator == 'equals':
                     if isinstance(expected_value, list):
-                        return actual_value not in expected_value
-                    return actual_value != expected_value
+                        # Convert everything to lowercase strings for comparison
+                        actual_str = str(actual_value).lower()
+                        expected_strs = [str(v).lower() for v in expected_value]
+                        if actual_str in expected_strs:
+                            return False
+                    else:
+                        if str(actual_value).lower() == str(expected_value).lower():
+                            return False
+                    
+                    # If exact match fails, try semantic validation
+                    expected_list = expected_value if isinstance(expected_value, list) else [expected_value]
+                    semantic_match = await self._semantic_validate_condition(str(actual_value), [str(v) for v in expected_list])
+                    return not semantic_match
+                
                 elif operator == 'contains':
                     return expected_value not in actual_value
                 elif operator == 'greater_than' or operator == '>':
@@ -244,7 +248,7 @@ class RuleEngine:
                     return float(actual_value) >= float(expected_value)
         
         return False
-    
+
     def _rule_has_matching_symptoms(self, rule: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
         """Check if rule has any symptoms that match the case data."""
         symptom_conditions = [
@@ -271,32 +275,43 @@ class RuleEngine:
         """Async version of get_missing_conditions that supports semantic validation."""
         missing = []
         for condition in rule.get('conditions', []):
+            # Skip attribute conditions where we already have a definitive mismatch
+            if condition.get('type') == 'attribute':
+                attribute_name = condition.get('attribute')
+                actual_value = self._get_attribute_value(attribute_name, case_data)
+                if actual_value is not None:
+                    # We have a value for this attribute, check if it's a mismatch
+                    expected_value = condition.get('value')
+                    operator = condition.get('operator')
+                    # If we have a definitive mismatch, skip this condition
+                    if not await self._compare_values_async(actual_value, expected_value, operator, f"attribute {attribute_name}"):
+                        print(f"[DEBUG] Skipping attribute condition {attribute_name} - already have definitive mismatch")
+                        continue
+
+            # For all other conditions, check if they're satisfied
             if not await self._is_condition_satisfied_async(condition, case_data):
                 missing.append(condition)
         return missing
     
-    def find_best_matching_rule(self, case_data: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-        """Find the highest priority rule where all conditions are satisfied."""
-        # Rules are already sorted by priority
+    async def find_best_matching_rule(self, case_data: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Find the highest priority rule that matches all conditions."""
         for rule in self.rules:
+            # Skip rule if any condition is explicitly violated
+            if await self._rule_has_violated_conditions(rule, case_data):
+                continue
+                
             # Check if all conditions are satisfied
-            all_conditions_satisfied = True
-            for condition in rule.get('conditions', []):
-                if not self._is_condition_satisfied(condition, case_data):
-                    all_conditions_satisfied = False
-                    break
-            
-            if all_conditions_satisfied:
-                print(f"\n[DEBUG] Found matching rule: {rule.get('rule_code')}")
-                print(f"[DEBUG] Case data that matched:")
-                print(json.dumps(case_data, indent=2))
+            if await self.is_rule_satisfied(rule, case_data):
                 return rule
         
         return None
-    
-    def is_rule_satisfied(self, rule: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
 
-        return len(self.get_missing_conditions(rule, case_data)) == 0
+    async def is_rule_satisfied(self, rule: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Check if all conditions in a rule are satisfied by the case data."""
+        for condition in rule.get('conditions', []):
+            if not await self._is_condition_satisfied_async(condition, case_data):
+                return False
+        return True
     
     def get_next_missing_condition(self, rule: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
 
@@ -369,13 +384,20 @@ class RuleEngine:
         
         # Handle equality
         elif operator in ['==', 'equals']:
+            # Convert both values to lowercase strings for comparison
+            actual_str = str(actual_value).lower()
+            
+            # If expected value is a list, check if actual value matches any item in the list
             if isinstance(expected_value, list):
-                return actual_value in expected_value
-            return actual_value == expected_value
+                expected_strs = [str(v).lower() for v in expected_value]
+                return actual_str in expected_strs
+            else:
+                # Direct string comparison
+                return actual_str == str(expected_value).lower()
             
         # Handle contains
         elif operator == 'contains':
-            return str(expected_value) in str(actual_value)
+            return str(expected_value).lower() in str(actual_value).lower()
             
         return False
 
@@ -390,8 +412,8 @@ class RuleEngine:
 
     def _get_attribute_value(self, attribute_name: str, case_data: Dict[str, Dict[str, Any]]) -> Optional[Any]:
         """Extract attribute value from case data."""
-        patient_data = case_data.get('patient', {})
-        for key, value in patient_data.items():
+        attributes = case_data.get('attributes', {})
+        for key, value in attributes.items():
             if key.upper() == attribute_name.upper():
                 return value
         return None

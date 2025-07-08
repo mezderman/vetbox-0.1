@@ -11,13 +11,13 @@ class CaseData:
         data (Dict[str, Dict[str, Any]]): The main storage for symptom data.
             Keys are symptom names, values are dictionaries containing 'present'
             status and any additional slot values.
-        patient (Dict[str, Any]): Patient attributes like sex, age, weight, breed.
+        attributes (Dict[str, Any]): Patient attributes like sex, age, weight, breed.
     """
     
     def __init__(self):
         """Initialize an empty case data store."""
         self.data: Dict[str, Dict[str, Any]] = {}
-        self.patient: Dict[str, Any] = {}
+        self.attributes: Dict[str, Any] = {}
     
     def add_symptom(self, symptom_name: str, present: bool) -> None:
         """
@@ -45,7 +45,7 @@ class CaseData:
             self.data[symptom_name] = {"present": None}
         self.data[symptom_name][slot_name] = value
 
-    def add_patient_attribute(self, attribute_name: str, value: Any) -> None:
+    def add_attribute(self, attribute_name: str, value: Any) -> None:
         """
         Add or update a patient attribute.
         
@@ -53,7 +53,7 @@ class CaseData:
             attribute_name: The name of the patient attribute (sex, age, weight, etc.)
             value: The value to set for the attribute
         """
-        self.patient[attribute_name] = value
+        self.attributes[attribute_name] = value
     
     def get_symptom(self, symptom_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -81,11 +81,11 @@ class CaseData:
         Convert the case data to a dictionary.
         
         Returns:
-            A dictionary representation of the case data including symptoms and patient data
+            A dictionary representation of the case data including symptoms and attributes
         """
         return {
             **self.data,  # All symptom data
-            "patient": self.patient  # Patient attributes
+            "attributes": self.attributes  # Patient attributes
         }
     
     def merge_extraction(self, extracted: Dict[str, Any]) -> None:
@@ -102,7 +102,7 @@ class CaseData:
         # Handle special "attributes" object that contains patient data
         if "attributes" in extracted:
             for attr_name, attr_value in extracted["attributes"].items():
-                self.patient[attr_name] = attr_value
+                self.attributes[attr_name] = attr_value
             # Remove attributes from extracted to avoid processing as symptom
             del extracted["attributes"]
             
