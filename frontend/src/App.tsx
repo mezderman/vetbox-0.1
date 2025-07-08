@@ -48,6 +48,29 @@ function App() {
     setMessages(prev => [...prev, newMessage]);
   };
 
+  const handleClearChat = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("http://localhost:8000/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      
+      // Reset the chat to initial state
+      setMessages([{
+        id: "welcome",
+        text: data.follow_up_question,
+        sender: "bot",
+        timestamp: new Date(),
+        type: "normal"
+      }]);
+    } catch (err) {
+      addMessage("Failed to clear chat. Please try again.", "bot", "error");
+    }
+    setLoading(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
@@ -95,10 +118,21 @@ function App() {
         <div className="chat-header">
           <div className="header-content">
             <div className="vet-icon">🏥</div>
-            <div>
+            <div className="header-text">
               <h1>VetBox Triage</h1>
               <p>AI-powered veterinary triage assistant</p>
             </div>
+            <button 
+              onClick={handleClearChat}
+              className="clear-button"
+              disabled={loading}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C15.3019 3 18.1885 4.77814 19.7545 7.42909" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <path d="M21 3V8C21 8.55228 20.5523 9 20 9H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              New Chat
+            </button>
           </div>
         </div>
         

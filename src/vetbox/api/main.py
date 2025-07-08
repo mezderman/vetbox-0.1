@@ -47,3 +47,14 @@ async def chat(request: ChatRequest):
     return ChatResponse(
         follow_up_question=result.follow_up_question
     )
+
+@app.post("/clear")
+async def clear_chat():
+    """Clear the current chat session and start fresh."""
+    global agent
+    # Reinitialize the agent with fresh state
+    agent = TriageAgent(rules=rule_engine.rules)
+    return {
+        "message": "Chat session cleared",
+        "follow_up_question": "Hello! I'm your veterinary triage assistant. Please describe your pet's symptoms and I'll help assess the situation."
+    }
