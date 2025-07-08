@@ -4,6 +4,10 @@ from .case_data import CaseData
 from vetbox.db.database import SessionLocal
 from vetbox.db.models import Rule
 from pydantic_ai import Agent
+from colorama import Fore, init
+
+# Initialize colorama
+init()
 
 class RuleEngine:
     """
@@ -189,6 +193,7 @@ class RuleEngine:
             if symptom_name:
                 symptom_data = case_data_lower.get(symptom_name.lower(), {})
                 if symptom_data.get('present') is False:
+                    print(f"{Fore.RED}[DEBUG] Symptom {symptom_name} is explicitly false{Fore.RESET}")
                     return True
         return False
     
@@ -208,7 +213,7 @@ class RuleEngine:
         
         # Only check violation if we have the attribute value
         if actual_value is not None:
-            print(f"[DEBUG] Checking attribute violation: {attribute_name} = '{actual_value}' against expected '{expected_value}' with operator '{operator}'")
+            print(f"{Fore.YELLOW}[DEBUG] Checking attribute violation: {attribute_name} = '{actual_value}' against expected '{expected_value}' with operator '{operator}'{Fore.RESET}")
             
             # Handle the new format where actual_value might be a dict with "not" field
             if isinstance(actual_value, dict) and "not" in actual_value:
@@ -221,31 +226,11 @@ class RuleEngine:
                 else:
                     return str(expected_value).lower() in not_values
             
-            # For regular string values, proceed with normal comparison
-            if isinstance(actual_value, str):
-                # First try exact matching
-                if operator == '==' or operator == 'equals':
-                    if isinstance(expected_value, list):
-                        # Convert everything to lowercase strings for comparison
-                        actual_str = str(actual_value).lower()
-                        expected_strs = [str(v).lower() for v in expected_value]
-                        if actual_str in expected_strs:
-                            return False
-                    else:
-                        if str(actual_value).lower() == str(expected_value).lower():
-                            return False
-                    
-                    # If exact match fails, try semantic validation
-                    expected_list = expected_value if isinstance(expected_value, list) else [expected_value]
-                    semantic_match = await self._semantic_validate_condition(str(actual_value), [str(v) for v in expected_list])
-                    return not semantic_match
-                
-                elif operator == 'contains':
-                    return expected_value not in actual_value
-                elif operator == 'greater_than' or operator == '>':
-                    return float(actual_value) <= float(expected_value)
-                elif operator == 'less_than' or operator == '<':
-                    return float(actual_value) >= float(expected_value)
+            # Compare values based on operator
+            result = await self._compare_values_async(actual_value, expected_value, operator, f"attribute {attribute_name}")
+            if not result:
+                print(f"{Fore.RED}[DEBUG] Attribute {attribute_name} validation failed{Fore.RESET}")
+                return True
         
         return False
 

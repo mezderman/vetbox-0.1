@@ -7,6 +7,10 @@ from vetbox.agents.follow_up_question_generator import FollowUpQuestionGenerator
 from vetbox.models.case_data import CaseData
 from vetbox.models.rule_engine import RuleEngine
 from typing import Dict, Any, List, Optional, Tuple
+from colorama import Fore, init
+
+# Initialize colorama
+init()
 
 class TriageInput(BaseModel):
     symptoms: str
@@ -42,6 +46,9 @@ class TriageAgent:
         # Extract conditions from user response
         conditions_extractor_agent = ConditionsExtractorAgent()
         
+        # Log user's response in blue
+        print(f"{Fore.BLUE}[User Answer]{Fore.RESET}", user_response)
+        
         # Pass the current question context to help with precise extraction
         conditions = await conditions_extractor_agent.run_async(
             question="What symptoms is your pet experiencing?",
@@ -53,7 +60,7 @@ class TriageAgent:
         # Update case data with new conditions
         self.case_data.merge_extraction(conditions)
         current_case = self.case_data.to_dict()
-        print("[Case Data]", current_case)
+        print(f"{Fore.GREEN}[Case Data]{Fore.RESET}", current_case)
 
         follow_up_question = None
         # Reset question context for the next iteration

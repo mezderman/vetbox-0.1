@@ -20,6 +20,10 @@ Extract all relevant symptoms and patient attributes based on the schema.
 
 Output your extraction as a valid JSON object using the canonical field and slot names.
 
+CRITICAL: Output ONLY the raw JSON object. Do NOT wrap it in code blocks, markdown, or any other formatting.
+BAD: ```json { "key": "value" }```
+GOOD: { "key": "value" }
+
 Extraction rules:
 
 **SYMPTOMS:**
@@ -74,7 +78,19 @@ When answering follow-up questions, carefully consider what the user is confirmi
      * "yes" → the negative condition is true
      * "no" → the negative condition is false
 
-3. Always extract based on what is explicitly stated or denied
+3. For questions about slot values:
+   - When asking about a list of options and the answer is "yes":
+     * Extract all options from the question and set them as a list
+     * Example Q: "Are any of these colors present: red, blue, green?"
+       A: "yes" → Set slot value to ["red", "blue", "green"]
+   - When asking about a list of options and the answer is "no":
+     * Set slot value to empty list []
+   - When the user specifies particular values:
+     * Set slot value to list containing only specified values
+     * Example Q: "Which medications is your pet taking?"
+       A: "just aspirin" → Set slot value to ["aspirin"]
+
+4. Always extract based on what is explicitly stated or denied
    - Do not make assumptions about alternative values
    - Only include information that is directly confirmed or denied
    - If the user provides additional information, include it
@@ -90,6 +106,12 @@ Context: {"type": "slot", "slot": "location", "parent_symptom": "hives"}
 Question: "Where are the hives located?"
 Answer: "on the neck"
 Output: {"hives": {"present": true, "location": ["neck"]}}
+
+Example:
+Context: {"type": "slot", "slot": "medications", "parent_symptom": "treatment"}
+Question: "Is your pet on any of these medications: penicillin, amoxicillin, or tetracycline?"
+Answer: "yes"
+Output: {"treatment": {"present": true, "medications": ["penicillin", "amoxicillin", "tetracycline"]}}
 
 If no context is provided, extract all symptoms and patient attributes as usual from the conversation.
 
@@ -158,6 +180,14 @@ Example outputs:
         try:
             # Extract the output string from AgentRunResult
             result_str = result.output if hasattr(result, 'output') else str(result)
+            
+            # Strip any markdown code blocks if present
+            if result_str.startswith('```'):
+                # Find the first and last ``` and extract content between them
+                start = result_str.find('\n', 3) + 1  # Skip first line with ```json
+                end = result_str.rfind('```')
+                result_str = result_str[start:end].strip()
+            
             # Parse the output string as JSON
             output = json.loads(result_str)
             print("[Extracted Condition from user message]", output)
