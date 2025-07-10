@@ -78,30 +78,36 @@ class TriageAgent:
         best_rule = await self.rule_engine.find_best_matching_rule(current_case)
         if best_rule:
             print("[Best Matching Rule]", best_rule.get('rule_code'), best_rule.get('rationale'))
-            self.rule_checking_logs.append(f"[Best Matching Rule] {best_rule.get('rule_code')} - {best_rule.get('rationale')}")
             
             # Check if there are still missing conditions (e.g., slot conditions)
             missing_conditions = await self.rule_engine.get_missing_conditions_async(best_rule, current_case)
             if missing_conditions:
-                print("[Missing Conditions for Best Rule]", missing_conditions)
-                self.rule_checking_logs.append(f"[Missing Conditions]\n{json.dumps(missing_conditions, indent=2)}")
+                # Still has missing conditions - treat as candidate rule
+                self.rule_checking_logs.append("[Status] Best matching rule found but has missing conditions")
+                self.rule_checking_logs.append(f"[Candidate Rule] {best_rule.get('rule_code')} - {best_rule.get('rationale')}")
+                next_condition = missing_conditions[0]
+                self.rule_checking_logs.append(f"[Next Condition to Ask]\n{json.dumps(next_condition, indent=2)}")
                 # Store the context for the next question
-                self.current_question_context = missing_conditions[0]
+                self.current_question_context = next_condition
                 # Generate follow-up question for the first missing condition
                 follow_up_question = await self.follow_up_generator.run_async(
                     case_data=current_case,
-                    missing_condition=missing_conditions[0]
+                    missing_condition=next_condition
                 )
                 print("[Follow-up Question]", follow_up_question)
             else:
-                # All conditions satisfied - provide triage recommendation
+                # All conditions satisfied - we have a complete match
                 priority = best_rule.get('priority', 'Routine')
+                self.rule_checking_logs.append("[Status] Complete rule match found!")
+                self.rule_checking_logs.append(f"[Matched Rule]\n{json.dumps(best_rule, indent=2)}")
+                self.rule_checking_logs.append(f"[Case Data]\n{json.dumps(current_case, indent=2)}")
+                
+                # Provide clean triage recommendation without JSON
                 follow_up_question = (
                     f"Based on your pet's symptoms, this appears to be a {priority.lower()} case.\n"
-                    f"Rule matched: {best_rule.get('rule_code')}\n"
-                    f"Case data: {json.dumps(current_case, indent=2)}"
+                    f"Matched rule: {best_rule.get('rule_code')} - {best_rule.get('rationale')}"
                 )
-                
+
         else:
             # No best matching rule found, but check for candidate rules
             print("[No Best Matching Rule] Checking candidate rules...")

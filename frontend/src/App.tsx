@@ -130,9 +130,13 @@ function App() {
 
         // Add Rule Checking logs if they exist
         if (data.rule_checking_logs && data.rule_checking_logs.length > 0) {
+          // Check if this is a complete match or still generating follow-up questions
+          const hasCompleteMatch = data.rule_checking_logs.some(log => log.includes("[Status] Complete rule match found!"));
+          const logTitle = hasCompleteMatch ? "Found a Match" : "Generate Follow-Up Question";
+          
           newLogs.push({
             id: Date.now().toString() + "-rules",
-            text: `Generate Follow-Up Question\n${data.rule_checking_logs.join('\n')}`,
+            text: `${logTitle}\n${data.rule_checking_logs.join('\n')}`,
             type: "info" as const,
             timestamp: new Date()
           });
