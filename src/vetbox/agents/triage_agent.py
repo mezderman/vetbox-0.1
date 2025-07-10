@@ -114,18 +114,21 @@ class TriageAgent:
                 candidate_rule = candidate_rules[0]  # Rules are sorted by priority
                 print("[Candidate Rule]", candidate_rule.get('rule_code'), candidate_rule.get('rationale'))
                 self.rule_checking_logs.append(f"[Candidate Rule] {candidate_rule.get('rule_code')} - {candidate_rule.get('rationale')}")
+                self.rule_checking_logs.append(f"[Available Candidates] {len(candidate_rules)} rules with no definitive mismatches")
                 
                 # Find missing conditions to ask about
                 missing_conditions = await self.rule_engine.get_missing_conditions_async(candidate_rule, current_case)
                 if missing_conditions:
                     print("[Missing Conditions for Candidate Rule]", missing_conditions)
-                    self.rule_checking_logs.append(f"[Missing Conditions]\n{json.dumps(missing_conditions, indent=2)}")
+                    # Only show the next condition to ask about (not all missing conditions)
+                    next_condition = missing_conditions[0]
+                    self.rule_checking_logs.append(f"[Next Condition to Ask]\n{json.dumps(next_condition, indent=2)}")
                     # Store the context for the next question
-                    self.current_question_context = missing_conditions[0]
+                    self.current_question_context = next_condition
                     # Generate follow-up question for the first missing condition
                     follow_up_question = await self.follow_up_generator.run_async(
                         case_data=current_case,
-                        missing_condition=missing_conditions[0]
+                        missing_condition=next_condition
                     )
                     print("[Follow-up Question]", follow_up_question)
                 else:
@@ -133,7 +136,7 @@ class TriageAgent:
                     follow_up_question = "Please provide more details about your pet's symptoms."
             else:
                 # No matching rules at all
-                self.rule_checking_logs.append("[Status] No matching rules found. Treating as routine case.")
+                self.rule_checking_logs.append("[Status] No viable candidate rules found. All rules have definitive mismatches.")
                 follow_up_question = "Based on the current symptoms, this appears to be a routine case. Please consult with a veterinarian for a proper assessment."
 
         # Create output with collected logs

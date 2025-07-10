@@ -149,19 +149,117 @@ class RuleEngine:
             session.close()
     
     async def find_candidate_rules(self, case_data: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Find rules where some symptoms match and no conditions are explicitly violated."""
+        """Find rules that have no definitive mismatches and could potentially match."""
         candidates = []
         
         for rule in self.rules:
-            # Skip rule if any condition is explicitly violated
-            if await self._rule_has_violated_conditions(rule, case_data):
-                continue
-                
-            # Include rule if it has any matching symptoms
-            if self._rule_has_matching_symptoms(rule, case_data):
+            # Check if this rule has any definitive mismatches
+            has_mismatch = False
+            for condition in rule.get('conditions', []):
+                if await self._has_definitive_mismatch(condition, case_data):
+                    print(f"[DEBUG] Rule {rule.get('rule_code')} discarded - definitive mismatch in condition: {condition}")
+                    has_mismatch = True
+                    break  # Stop checking other conditions in this rule
+            
+            # Only add rules with no definitive mismatches as candidates
+            if not has_mismatch:
                 candidates.append(rule)
+                print(f"[DEBUG] Rule {rule.get('rule_code')} added as candidate - no definitive mismatches found")
         
+        # Sort candidates by priority (highest first)
+        candidates.sort(key=lambda x: self.priority_map.get(x.get('priority', ''), 0), reverse=True)
         return candidates
+
+    async def _has_definitive_mismatch(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Check if a condition has a definitive mismatch (not just missing data)."""
+        condition_type = condition.get('type')
+        
+        if condition_type == 'symptom':
+            return self._has_symptom_definitive_mismatch(condition, case_data)
+        elif condition_type == 'attribute':
+            return await self._has_attribute_definitive_mismatch(condition, case_data)
+        elif condition_type == 'slot':
+            return await self._has_slot_definitive_mismatch(condition, case_data)
+        
+        return False
+
+    def _has_symptom_definitive_mismatch(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Check if symptom condition has a definitive mismatch (explicitly false)."""
+        symptom_names = condition.get('symptom', [])
+        if not isinstance(symptom_names, list):
+            symptom_names = [symptom_names]
+        
+        case_data_lower = {k.lower(): v for k, v in case_data.items()}
+        
+        # For OR logic symptoms, if ANY symptom is explicitly false, it's not a mismatch
+        # Only if ALL symptoms are explicitly false, then it's a mismatch
+        logic_type = condition.get('logic_type', 'OR')
+        
+        if logic_type == 'OR':
+            # For OR logic, we need ALL symptoms to be explicitly false to call it a mismatch
+            all_false = True
+            for symptom_name in symptom_names:
+                if symptom_name:
+                    symptom_data = case_data_lower.get(symptom_name.lower(), {})
+                    if symptom_data.get('present') is not False:  # Not explicitly false
+                        all_false = False
+                        break
+            return all_false and len([s for s in symptom_names if s]) > 0  # Only if we actually checked symptoms
+        else:  # AND logic
+            # For AND logic, if ANY symptom is explicitly false, it's a mismatch
+            for symptom_name in symptom_names:
+                if symptom_name:
+                    symptom_data = case_data_lower.get(symptom_name.lower(), {})
+                    if symptom_data.get('present') is False:
+                        return True
+        
+        return False
+
+    async def _has_attribute_definitive_mismatch(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Check if attribute condition has a definitive mismatch."""
+        attribute_name = condition.get('attribute')
+        operator = condition.get('operator')
+        expected_value = condition.get('value')
+        
+        # Get actual attribute value
+        actual_value = self._get_attribute_value(attribute_name, case_data)
+        
+        # Only check for mismatch if we have the attribute value
+        if actual_value is not None:
+            # Check if values don't match
+            result = await self._compare_values_async(actual_value, expected_value, operator, f"attribute {attribute_name}")
+            if not result:
+                print(f"[DEBUG] Definitive mismatch for attribute {attribute_name}: '{actual_value}' vs expected '{expected_value}'")
+                return True
+        
+        return False
+
+    async def _has_slot_definitive_mismatch(self, condition: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Check if slot condition has a definitive mismatch."""
+        parent_symptom = condition.get('parent_symptom')
+        slot_name = condition.get('slot')
+        
+        # First check if parent symptom is present (required for slot evaluation)
+        if not self._is_symptom_present(parent_symptom, case_data):
+            # Parent symptom not present - this could be a mismatch if parent is explicitly false
+            if self._has_symptom_definitive_mismatch({'symptom': [parent_symptom], 'logic_type': 'OR'}, case_data):
+                return True
+            # Otherwise, it's just not provided yet
+            return False
+        
+        # Parent symptom is present, check slot value
+        actual_value = self._get_slot_value(slot_name, parent_symptom, case_data)
+        
+        # Only check for mismatch if we have a slot value
+        if actual_value is not None:
+            expected_value = condition.get('value')
+            operator = condition.get('operator')
+            result = await self._compare_values_async(actual_value, expected_value, operator, f"slot {slot_name}")
+            if not result:
+                print(f"[DEBUG] Definitive mismatch for slot {slot_name}: '{actual_value}' vs expected '{expected_value}'")
+                return True
+        
+        return False
     
     async def _rule_has_violated_conditions(self, rule: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> bool:
         """Check if rule has any conditions that are explicitly violated by case data."""
@@ -258,23 +356,14 @@ class RuleEngine:
         return missing
 
     async def get_missing_conditions_async(self, rule: Dict[str, Any], case_data: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Async version of get_missing_conditions that supports semantic validation."""
+        """Get conditions that are not yet satisfied (but not definitively mismatched)."""
         missing = []
         for condition in rule.get('conditions', []):
-            # Skip attribute conditions where we already have a definitive mismatch
-            if condition.get('type') == 'attribute':
-                attribute_name = condition.get('attribute')
-                actual_value = self._get_attribute_value(attribute_name, case_data)
-                if actual_value is not None:
-                    # We have a value for this attribute, check if it's a mismatch
-                    expected_value = condition.get('value')
-                    operator = condition.get('operator')
-                    # If we have a definitive mismatch, skip this condition
-                    if not await self._compare_values_async(actual_value, expected_value, operator, f"attribute {attribute_name}"):
-                        print(f"[DEBUG] Skipping attribute condition {attribute_name} - already have definitive mismatch")
-                        continue
-
-            # For all other conditions, check if they're satisfied
+            # Skip conditions that have definitive mismatches (these rules shouldn't be candidates)
+            if await self._has_definitive_mismatch(condition, case_data):
+                continue
+                
+            # Check if condition is satisfied
             if not await self._is_condition_satisfied_async(condition, case_data):
                 missing.append(condition)
         return missing
