@@ -22,31 +22,41 @@ logging.getLogger('openai').setLevel(logging.ERROR)
 load_dotenv()
 app = FastAPI()
 
-# Allow CORS for your React frontend (adjust origins as needed)
+# Allow CORS for your React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Change to your frontend URL
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 class ChatRequest(BaseModel):
-    user_answer: str  # Expected request body: { "user_answer": "..." }
+    user_answer: str
 
 class ChatResponse(BaseModel):
-    follow_up_question: str
+    follow_up_question: str | None = None
+    extracted_conditions: dict | None = None
 
 # Initialize the agent with rules from the database
 rule_engine = RuleEngine.get_all_rules()
 agent = TriageAgent(rules=rule_engine.rules)
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chat")
 async def chat(request: ChatRequest):
-    result = await agent.run_async(request.user_answer)
-    return ChatResponse(
-        follow_up_question=result.follow_up_question
-    )
+    try:
+        result = await agent.run_async(request.user_answer)
+        # Get the extracted conditions from the agent's case data
+        extracted_conditions = agent.case_data.to_dict()
+        return ChatResponse(
+            follow_up_question=result.follow_up_question,
+            extracted_conditions=extracted_conditions
+        )
+    except Exception as e:
+        return ChatResponse(
+            follow_up_question=str(e),
+            extracted_conditions=None
+        )
 
 @app.post("/clear")
 async def clear_chat():
