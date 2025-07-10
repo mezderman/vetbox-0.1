@@ -9,17 +9,19 @@ type Message = {
   type?: "error" | "normal";
 };
 
-type LogEntry = {
+interface LogEntry {
   id: string;
   text: string;
-  type: "info" | "warning" | "error";
+  type: "error" | "info" | "warning";
   timestamp: Date;
-};
+}
 
-type ChatResponse = {
-  follow_up_question: string | null;
-  extracted_conditions?: Record<string, any> | null;
-} | { error: string } | null;
+interface ChatResponse {
+  follow_up_question: string;
+  extracted_conditions?: any;
+  rule_checking_logs?: string[];
+  error?: string;
+}
 
 function App() {
   const [inputText, setInputText] = useState("");
@@ -110,18 +112,34 @@ function App() {
       });
       const data: ChatResponse = await res.json();
       
-      if (data && "error" in data) {
+      if (data.error) {  // Changed from "error" in data to data.error
         addMessage(data.error || "An unknown error occurred", "bot", "error");
-      } else if (data && data.follow_up_question) {
-        // Clear previous logs and add new extracted conditions if they exist
+      } else if (data.follow_up_question) {
+        // Create new logs array
+        const newLogs: LogEntry[] = [];
+        
+        // Add Case Data log if conditions exist
         if (data.extracted_conditions) {
-          setSystemLogs([{
-            id: Date.now().toString(),
-            text: `Extracted Condition from user message\n${JSON.stringify(data.extracted_conditions, null, 2)}`,
-            type: "info",
+          newLogs.push({
+            id: Date.now().toString() + "-conditions",
+            text: `Case Data\n${JSON.stringify(data.extracted_conditions, null, 2)}`,
+            type: "info" as const,
             timestamp: new Date()
-          }]);
+          });
         }
+
+        // Add Rule Checking logs if they exist
+        if (data.rule_checking_logs && data.rule_checking_logs.length > 0) {
+          newLogs.push({
+            id: Date.now().toString() + "-rules",
+            text: `Generate Follow-Up Question\n${data.rule_checking_logs.join('\n')}`,
+            type: "info" as const,
+            timestamp: new Date()
+          });
+        }
+
+        // Update system logs
+        setSystemLogs(newLogs);
         addMessage(data.follow_up_question, "bot");
       } else {
         addMessage("I received your message but couldn't generate a proper response. Please try again.", "bot", "error");

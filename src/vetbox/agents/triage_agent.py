@@ -16,7 +16,8 @@ class TriageInput(BaseModel):
     symptoms: str
 
 class TriageOutput(BaseModel):
-    follow_up_question: str | None = None
+    follow_up_question: Optional[str] = None
+    rule_checking_logs: List[str] = []
 
 class TriageAgent:
     def __init__(self, rules: List[Dict[str, Any]] = None, model: str = None):
@@ -38,11 +39,18 @@ class TriageAgent:
         )
         self.case_data = CaseData()
         self.rule_engine = RuleEngine(rules or [])
+        # Connect RuleEngine to TriageAgent for logging
+        self.rule_engine.triage_agent = self
         self.follow_up_generator = FollowUpQuestionGenerator()
         # Track the current question context for precise condition extraction
         self.current_question_context = None
+        # Track rule checking logs
+        self.rule_checking_logs = []
 
     async def run_async(self, user_response: str) -> TriageOutput:
+        # Reset rule checking logs for new request
+        self.rule_checking_logs = []
+        
         # Extract conditions from user response
         conditions_extractor_agent = ConditionsExtractorAgent()
         
@@ -70,11 +78,13 @@ class TriageAgent:
         best_rule = await self.rule_engine.find_best_matching_rule(current_case)
         if best_rule:
             print("[Best Matching Rule]", best_rule.get('rule_code'), best_rule.get('rationale'))
+            self.rule_checking_logs.append(f"[Best Matching Rule] {best_rule.get('rule_code')} - {best_rule.get('rationale')}")
             
             # Check if there are still missing conditions (e.g., slot conditions)
             missing_conditions = await self.rule_engine.get_missing_conditions_async(best_rule, current_case)
             if missing_conditions:
                 print("[Missing Conditions for Best Rule]", missing_conditions)
+                self.rule_checking_logs.append(f"[Missing Conditions]\n{json.dumps(missing_conditions, indent=2)}")
                 # Store the context for the next question
                 self.current_question_context = missing_conditions[0]
                 # Generate follow-up question for the first missing condition
@@ -95,17 +105,21 @@ class TriageAgent:
         else:
             # No best matching rule found, but check for candidate rules
             print("[No Best Matching Rule] Checking candidate rules...")
+            self.rule_checking_logs.append("[Status] No best matching rule found, checking candidate rules...")
+            
             candidate_rules = await self.rule_engine.find_candidate_rules(current_case)
             
             if candidate_rules:
                 # Use the highest priority candidate rule for follow-up questions
                 candidate_rule = candidate_rules[0]  # Rules are sorted by priority
                 print("[Candidate Rule]", candidate_rule.get('rule_code'), candidate_rule.get('rationale'))
+                self.rule_checking_logs.append(f"[Candidate Rule] {candidate_rule.get('rule_code')} - {candidate_rule.get('rationale')}")
                 
                 # Find missing conditions to ask about
                 missing_conditions = await self.rule_engine.get_missing_conditions_async(candidate_rule, current_case)
                 if missing_conditions:
                     print("[Missing Conditions for Candidate Rule]", missing_conditions)
+                    self.rule_checking_logs.append(f"[Missing Conditions]\n{json.dumps(missing_conditions, indent=2)}")
                     # Store the context for the next question
                     self.current_question_context = missing_conditions[0]
                     # Generate follow-up question for the first missing condition
@@ -119,8 +133,13 @@ class TriageAgent:
                     follow_up_question = "Please provide more details about your pet's symptoms."
             else:
                 # No matching rules at all
+                self.rule_checking_logs.append("[Status] No matching rules found. Treating as routine case.")
                 follow_up_question = "Based on the current symptoms, this appears to be a routine case. Please consult with a veterinarian for a proper assessment."
 
-        return TriageOutput(
-            follow_up_question=follow_up_question
+        # Create output with collected logs
+        output = TriageOutput(
+            follow_up_question=follow_up_question,
+            rule_checking_logs=self.rule_checking_logs
         )
+        print("[Rule Checking Logs]", self.rule_checking_logs)  # Debug print
+        return output

@@ -18,6 +18,7 @@ class RuleEngine:
     def __init__(self, rules: List[Dict[str, Any]]):
         """Initialize the rule engine with a list of rules."""
         self.rules = rules
+        self.triage_agent = None  # Will be set by TriageAgent
         # Priority mapping from string values to numeric levels
         self.priority_map = {
             "Emergency": 4,

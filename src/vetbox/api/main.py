@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from src.vetbox.agents.triage_agent import TriageAgent
@@ -7,6 +7,7 @@ import os
 import logging
 from vetbox.models.rule_engine import RuleEngine
 import json as pyjson
+from typing import Optional, Dict, Any, List
 
 # Configure logging
 logging.basicConfig(
@@ -35,8 +36,10 @@ class ChatRequest(BaseModel):
     user_answer: str
 
 class ChatResponse(BaseModel):
-    follow_up_question: str | None = None
-    extracted_conditions: dict | None = None
+    follow_up_question: Optional[str] = None
+    extracted_conditions: Optional[Dict[str, Any]] = None
+    rule_checking_logs: Optional[List[str]] = None
+    error: Optional[str] = None
 
 # Initialize the agent with rules from the database
 rule_engine = RuleEngine.get_all_rules()
@@ -50,12 +53,14 @@ async def chat(request: ChatRequest):
         extracted_conditions = agent.case_data.to_dict()
         return ChatResponse(
             follow_up_question=result.follow_up_question,
-            extracted_conditions=extracted_conditions
+            extracted_conditions=extracted_conditions,
+            rule_checking_logs=result.rule_checking_logs
         )
     except Exception as e:
         return ChatResponse(
             follow_up_question=str(e),
-            extracted_conditions=None
+            extracted_conditions=None,
+            rule_checking_logs=None
         )
 
 @app.post("/clear")
