@@ -16,7 +16,13 @@ Instructions:
 
 You will be given the last question asked and the user's answer, plus any question context that provides information about what specific symptom/condition the question is about.
 
-Extract all relevant symptoms and patient attributes based on the schema.
+Extract ALL relevant symptoms and patient attributes mentioned in the conversation, based on the schema.
+
+CRITICAL: Extract every piece of information mentioned, including:
+- Species (dog, cat, bird, etc.) when mentioned as "my dog", "my cat", etc.
+- Age when mentioned ("3 year old", "puppy", "kitten", etc.)
+- Sex when mentioned ("male", "female", "he", "she", etc.)
+- All symptoms described
 
 Output your extraction as a valid JSON object using the canonical field and slot names.
 
@@ -59,16 +65,20 @@ For slot questions, ALWAYS associate the answer with the parent_symptom specifie
 When answering follow-up questions, carefully consider what the user is confirming or denying:
 
 1. For direct questions about attributes or conditions:
-   - When the question asks "Is X true?" and the answer is:
-     * "yes" → Extract X as true/confirmed
-     * "no" → Extract X as false/denied
+   - When the question asks "Is your pet X?" or "Is X true?" and the answer is:
+     * "yes" → Extract X as the confirmed value
+     * "no" → DO NOT extract X, or extract explicit negation if context requires it
    - When additional information is provided:
-     * Extract both the yes/no response AND any additional details
+     * Extract the additional details provided, not the denied value
    - Examples:
      * Q: "Is your pet male?" A: "yes" → {"attributes": {"sex": "male"}}
+     * Q: "Is your pet male?" A: "no" → {} (extract nothing, or wait for clarification)
      * Q: "Is your pet male?" A: "no, she's female" → {"attributes": {"sex": "female"}}
-     * Q: "Is X present?" A: "yes" → {"X": {"present": true}}
-     * Q: "Is X present?" A: "no" → {"X": {"present": false}}
+     * Q: "Is your pet a cat?" A: "yes" → {"attributes": {"species": "cat"}}
+     * Q: "Is your pet a cat?" A: "no" → {} (extract nothing, species is NOT cat)
+     * Q: "Is your pet a cat?" A: "no, it's a dog" → {"attributes": {"species": "dog"}}
+     * Q: "Is X symptom present?" A: "yes" → {"X": {"present": true}}
+     * Q: "Is X symptom present?" A: "no" → {"X": {"present": false}}
 
 2. For questions about conditions:
    - If the question asks about a positive condition (e.g., "Can your pet keep food down?"):
@@ -90,10 +100,19 @@ When answering follow-up questions, carefully consider what the user is confirmi
      * Example Q: "Which medications is your pet taking?"
        A: "just aspirin" → Set slot value to ["aspirin"]
 
-4. Always extract based on what is explicitly stated or denied
-   - Do not make assumptions about alternative values
-   - Only include information that is directly confirmed or denied
-   - If the user provides additional information, include it
+4. CRITICAL RULE FOR ATTRIBUTE QUESTIONS:
+   - If the question is "Is your pet a [SPECIES]?" and the answer is "no":
+     * Extract the negation to avoid asking again: {"attributes": {"species": {"not": "[SPECIES]"}}}
+     * This indicates the pet is NOT that species
+   - If the question is "Is your pet [ATTRIBUTE_VALUE]?" and the answer is "no":
+     * Extract the negation: {"attributes": {"[attribute_name]": {"not": "[ATTRIBUTE_VALUE]"}}}
+     * Only extract positive values when user explicitly provides alternatives
+
+5. Always extract based on what is explicitly stated or confirmed
+   - Do not extract denied values
+   - Do not make assumptions about alternative values unless explicitly stated
+   - Only include information that is directly confirmed by the user
+   - If the user provides additional information after "no", extract that instead
 
 Example:
 Context: {"type": "slot", "slot": "frequency", "parent_symptom": "sneezing"}
@@ -148,6 +167,37 @@ Example outputs:
 {
   "attributes": { "sex": "female", "species": "cat", "age": 7 }
 }
+
+CRITICAL: For initial user messages, extract ALL mentioned information:
+
+User: "my dog is not eating"
+Output: {"not_eating": {"present": true}, "attributes": {"species": "dog"}}
+
+User: "my 3 year old cat has been vomiting"
+Output: {"vomiting": {"present": true}, "attributes": {"species": "cat", "age": 3}}
+
+User: "my puppy seems lethargic and won't eat"
+Output: {"lethargy": {"present": true}, "not_eating": {"present": true}, "attributes": {"species": "dog"}}
+
+User: "my male dog has diarrhea"
+Output: {"diarrhea": {"present": true}, "attributes": {"species": "dog", "sex": "male"}}
+
+IMPORTANT EXAMPLES FOR YES/NO ATTRIBUTE QUESTIONS:
+
+Q: "Is your pet a [SPECIES_X]?" A: "yes"
+Output: {"attributes": {"species": "[SPECIES_X]"}}
+
+Q: "Is your pet a [SPECIES_X]?" A: "no" 
+Output: {"attributes": {"species": {"not": "[SPECIES_X]"}}}
+
+Q: "Is your pet a [SPECIES_X]?" A: "no, it's a [SPECIES_Y]"
+Output: {"attributes": {"species": "[SPECIES_Y]"}}
+
+Q: "Is your pet [ATTRIBUTE_VALUE_X]?" A: "no"
+Output: {"attributes": {"[attribute_name]": {"not": "[ATTRIBUTE_VALUE_X]"}}}
+
+Q: "Is your pet [ATTRIBUTE_VALUE_X]?" A: "no, it's [ATTRIBUTE_VALUE_Y]"  
+Output: {"attributes": {"[attribute_name]": "[ATTRIBUTE_VALUE_Y]"}}
             """
         )
         self.agent = Agent(

@@ -226,6 +226,29 @@ class RuleEngine:
         
         # Only check for mismatch if we have the attribute value
         if actual_value is not None:
+            # Handle the new format where actual_value might be a dict with "not" field
+            if isinstance(actual_value, dict) and "not" in actual_value:
+                # If we're expecting a value that's in the "not" list, that's a definitive mismatch
+                not_value = actual_value["not"]
+                # Convert to list if it's a single value
+                if not isinstance(not_value, list):
+                    not_values = [str(not_value).lower()]
+                else:
+                    not_values = [str(v).lower() for v in not_value]
+                
+                if isinstance(expected_value, list):
+                    expected_values = [str(v).lower() for v in expected_value]
+                    # If any expected value is in the "not" list, that's a mismatch
+                    if any(ev in not_values for ev in expected_values):
+                        print(f"[DEBUG] Definitive mismatch for attribute {attribute_name}: expected '{expected_value}' but user said NOT {actual_value['not']}")
+                        return True
+                else:
+                    if str(expected_value).lower() in not_values:
+                        print(f"[DEBUG] Definitive mismatch for attribute {attribute_name}: expected '{expected_value}' but user said NOT {actual_value['not']}")
+                        return True
+                # If it's in the "not" format but no mismatch, continue to check other logic
+                return False
+            
             # Special handling for age comparisons
             if attribute_name.upper() == 'AGE':
                 actual_value = self._normalize_age_value(actual_value)
@@ -322,7 +345,13 @@ class RuleEngine:
             # Handle the new format where actual_value might be a dict with "not" field
             if isinstance(actual_value, dict) and "not" in actual_value:
                 # If we're expecting a value that's in the "not" list, that's a violation
-                not_values = [str(v).lower() for v in actual_value["not"]]
+                not_value = actual_value["not"]
+                # Convert to list if it's a single value
+                if not isinstance(not_value, list):
+                    not_values = [str(not_value).lower()]
+                else:
+                    not_values = [str(v).lower() for v in not_value]
+                
                 if isinstance(expected_value, list):
                     expected_values = [str(v).lower() for v in expected_value]
                     # If any expected value is in the "not" list, that's a violation
@@ -569,6 +598,22 @@ class RuleEngine:
         print(f"[DEBUG] Checking symptoms: {symptom_names}")
         return any(self._is_single_symptom_present(s, case_data) for s in symptom_names)
 
+    async def _is_symptom_present_async(self, symptom_names, case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Async version that checks if any symptom in the array is present using semantic matching."""
+        if not symptom_names:
+            return False
+            
+        # Always expect an array of symptoms (OR logic)
+        if not isinstance(symptom_names, list):
+            symptom_names = [symptom_names]
+            
+        print(f"[DEBUG] Checking symptoms (async): {symptom_names}")
+        # Use asyncio to check all symptoms and return True if any match
+        for symptom in symptom_names:
+            if await self._is_single_symptom_present_async(symptom, case_data):
+                return True
+        return False
+
     def _is_single_symptom_present(self, symptom_name: str, case_data: Dict[str, Dict[str, Any]]) -> bool:
         """Check if a single symptom is present in the case data (case-insensitive)."""
         if not symptom_name:  # Add null check
@@ -580,6 +625,33 @@ class RuleEngine:
         is_present = symptom_data.get('present', False) is True
         print(f"[DEBUG] Single symptom '{symptom_name}' present: {is_present}")
         return is_present
+
+    async def _is_single_symptom_present_async(self, symptom_name: str, case_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Check if a single symptom is present using semantic matching when exact match fails."""
+        if not symptom_name:
+            return False
+        
+        # First try exact matching
+        if self._is_single_symptom_present(symptom_name, case_data):
+            return True
+        
+        # If exact match fails, try semantic matching against all present symptoms
+        symptom_name_lower = symptom_name.lower()
+        case_data_lower = {k.lower(): v for k, v in case_data.items()}
+        
+        # Get all symptoms that are present in the case data
+        present_symptoms = []
+        for key, value in case_data_lower.items():
+            if isinstance(value, dict) and value.get('present') is True:
+                present_symptoms.append(key)
+        
+        if present_symptoms:
+            print(f"[DEBUG] Exact match failed for '{symptom_name}', trying semantic validation against: {present_symptoms}")
+            is_semantic_match = await self._semantic_validate_condition(symptom_name_lower, present_symptoms)
+            print(f"[DEBUG] Semantic validation result for '{symptom_name}': {is_semantic_match}")
+            return is_semantic_match
+            
+        return False
 
     async def _semantic_validate_condition(self, actual_value: str, expected_values: List[str]) -> bool:
         """
@@ -630,14 +702,14 @@ class RuleEngine:
         
         if condition_type == 'symptom':
             symptom_name = condition.get('symptom')
-            return self._is_symptom_present(symptom_name, case_data)
+            return await self._is_symptom_present_async(symptom_name, case_data)
             
         elif condition_type == 'slot':
             parent_symptom = condition.get('parent_symptom')
             slot_name = condition.get('slot')
             
             # First check if parent symptom exists and is present
-            if not self._is_symptom_present(parent_symptom, case_data):
+            if not await self._is_symptom_present_async(parent_symptom, case_data):
                 return False
                 
             actual_value = self._get_slot_value(slot_name, parent_symptom, case_data)
