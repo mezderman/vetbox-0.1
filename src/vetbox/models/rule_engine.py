@@ -226,6 +226,11 @@ class RuleEngine:
         
         # Only check for mismatch if we have the attribute value
         if actual_value is not None:
+            # Special handling for age comparisons
+            if attribute_name.upper() == 'AGE':
+                actual_value = self._normalize_age_value(actual_value)
+                expected_value = self._normalize_age_value(expected_value)
+            
             # Check if values don't match
             result = await self._compare_values_async(actual_value, expected_value, operator, f"attribute {attribute_name}")
             if not result:
@@ -399,19 +404,29 @@ class RuleEngine:
     
     def _normalize_age_value(self, value: Any) -> float:
         """
-        Normalize age values to a common format (numeric years).
+        Normalize age values to months for consistent comparison.
         Handles both numeric values and strings with units.
+        User input is assumed to be in years, rules can be in months or "X year" format.
         """
         if isinstance(value, (int, float)):
-            return float(value)
+            # For user input, assume it's in years and convert to months
+            return float(value) * 12
         
-        # Handle string values like "1 year" or "1 years"
+        # Handle string values like "1 year" or "1 years" or just "12" (months)
         try:
             if isinstance(value, str):
-                # Extract numeric part
-                numeric_part = float(''.join(c for c in value if c.isdigit() or c == '.'))
-                # For now we assume all ages in rules are in years
-                return numeric_part
+                value_lower = value.lower().strip()
+                
+                # Check if it contains "year" - convert to months
+                if "year" in value_lower:
+                    # Extract numeric part and convert years to months
+                    numeric_part = float(''.join(c for c in value_lower if c.isdigit() or c == '.'))
+                    return numeric_part * 12
+                else:
+                    # Assume it's already in months
+                    numeric_part = float(''.join(c for c in value_lower if c.isdigit() or c == '.'))
+                    return numeric_part
+                    
             elif isinstance(value, list):
                 # If it's a list (like from rules.json), take first value
                 return self._normalize_age_value(value[0])

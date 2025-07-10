@@ -32,7 +32,7 @@
     "conditions": [
       { "type": "symptom", "symptom": ["VOMITING"] },
       { "type": "symptom", "symptom": ["DIARRHEA"] },
-      { "type": "attribute", "attribute": "AGE", "operator": "<", "value": ["1 year"] }
+      { "type": "attribute", "attribute": "AGE", "operator": "<", "value": ["12"] }
     ]
   },
   {
@@ -64,6 +64,21 @@
         ],
         "parent_symptom": "VOMITING"
       }
+    ]
+  },
+  {
+    "id": 136,
+    "rule_code": "U-136",
+    "priority": "Emergency",
+    "rationale": "Addison's disease, Kidney disease, Liver disease",
+    "conditions": [
+      { "type": "attribute", "attribute": "SPECIES", "operator": "==", "value": ["DOG"] },
+      { "type": "attribute", "attribute": "AGE", "operator": ">", "value": ["12"] },
+      { "type": "symptom", "symptom": ["VOMITING"] },
+      { "type": "symptom", "symptom": ["DIARRHEA"] },
+      { "type": "symptom", "symptom": ["LETHARGIC"] },
+      { "type": "symptom", "symptom": ["DECREASED_APPETITE"] },
+      { "type": "symptom", "symptom": ["INCREASED_DRINKING"] }
     ]
   }
 ]
