@@ -521,6 +521,10 @@ class RuleEngine:
             attribute_name = condition.get('attribute')
             actual_value = self._get_attribute_value(attribute_name, case_data)
             
+            # If attribute value is not provided, condition is not satisfied
+            if actual_value is None:
+                return False
+            
             # Special handling for age comparisons
             if attribute_name.upper() == 'AGE':
                 actual_value = self._normalize_age_value(actual_value)
@@ -632,6 +636,10 @@ class RuleEngine:
         elif condition_type == 'attribute':
             attribute_name = condition.get('attribute')
             actual_value = self._get_attribute_value(attribute_name, case_data)
+            
+            # If attribute value is not provided, condition is not satisfied
+            if actual_value is None:
+                return False
             
             # Special handling for age comparisons
             if attribute_name.upper() == 'AGE':
